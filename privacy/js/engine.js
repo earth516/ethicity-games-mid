@@ -71,7 +71,8 @@
     story.trustable.forEach(function (k) { trust[k] = 0; });
     return {
       v: 1,
-      screen: 'scene',          // scene | chapter | ending
+      screen: 'scene',          // scene | map | chapter | ending
+      mapTarget: null,          // map 화면일 때 도착하면 열릴 장면 id
       scene: story.start,
       chapter: 0,
       nextChapter: null,
@@ -150,25 +151,41 @@
       next.screen = 'chapter';
       next.nextChapter = Number(target.split(':')[1]);
     } else {
-      if (!story.scenes[target]) throw new Error('없는 장면: ' + target);
-      next.screen = 'scene';
-      next.scene = target;
-      next.visited.push(target);
+      enterScene(story, next, target);
     }
     return next;
+  }
+
+  /* 맵 트리거가 있는 장면은 먼저 맵(이동) 화면을 거친다 */
+  function enterScene(story, next, target) {
+    if (!story.scenes[target]) throw new Error('없는 장면: ' + target);
+    if (story.triggers && story.triggers[target]) {
+      next.screen = 'map';
+      next.mapTarget = target;
+      return;
+    }
+    next.screen = 'scene';
+    next.scene = target;
+    next.visited.push(target);
   }
 
   function advance(story, state) {
     if (state.screen === 'chapter') {
       var n = state.nextChapter, ch = story.chapters[n];
       var next = clone(state);
-      next.screen = 'scene';
       next.chapter = n;
       next.nextChapter = null;
-      next.scene = ch.start;
-      next.visited.push(ch.start);
       next.chapterMarks[n] = { stats: clone(state.stats), trust: clone(state.trust) };
+      enterScene(story, next, ch.start);
       return next;
+    }
+    if (state.screen === 'map') {
+      var m = clone(state);
+      m.screen = 'scene';
+      m.scene = state.mapTarget;
+      m.mapTarget = null;
+      m.visited.push(m.scene);
+      return m;
     }
     if (needsChoice(story, state)) throw new Error('선택이 필요함: ' + state.scene);
     return goTo(story, state, pendingNext(story, state));
@@ -199,7 +216,8 @@
   function isValidState(story, s) {
     if (!s || s.v !== 1 || typeof s !== 'object') return false;
     if (!s.stats || !s.trust || !s.flags || !Array.isArray(s.history) || !Array.isArray(s.visited)) return false;
-    if (['scene', 'chapter', 'ending'].indexOf(s.screen) < 0) return false;
+    if (['scene', 'map', 'chapter', 'ending'].indexOf(s.screen) < 0) return false;
+    if (s.screen === 'map' && !(story.scenes[s.mapTarget] && story.triggers && story.triggers[s.mapTarget])) return false;
     if (!story.scenes[s.scene]) return false;
     if (s.screen === 'chapter' && !story.chapters[s.nextChapter]) return false;
     if (s.reaction) {

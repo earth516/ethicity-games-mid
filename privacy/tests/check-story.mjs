@@ -8,6 +8,8 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const story = require('../js/story.js');
 const E = require('../js/engine.js');
+const WORLD = require('../js/world.js');
+story.triggers = WORLD.triggers; // 앱과 같은 연결: 트리거가 있는 장면 앞에 맵 단계
 
 const errors = [];
 const warn = [];
@@ -190,6 +192,60 @@ for (const [id, sc] of Object.entries(story.scenes)) {
 for (const [eid, ev] of Object.entries(story.events)) ev.outcomes.forEach((o) => { if (!seenOutcome.has(eid + '|' + o.text)) err(`한 번도 나오지 않은 사건 결과: ${eid} "${o.text}"`); });
 for (const e of story.endings) if (!endingCount[e.code] && routeResult[e.code]?.s.ending !== e.code) err('도달 불가 엔딩: ' + e.code);
 
+// ── 6b. 맵 검사 ──────────────────────────
+const TRIGGER_ORDER = ['c1_e1_a', 'c1_e2_a', 'c1_e3_a', 'c2_e4_a', 'c2_e5_a', 'c2_e6_a', 'c3_e7_a', 'c3_e8_a', 'c3_e9_a', 'ep_1'];
+for (const id of Object.keys(WORLD.triggers)) if (!story.scenes[id]) err('맵 트리거가 없는 장면을 가리킴: ' + id);
+for (const id of TRIGGER_ORDER) if (!WORLD.triggers[id]) err('맵 트리거 누락: ' + id);
+// 다른 사건(또는 장 시작)에서 넘어오는 장면 = 사건 입구 → 반드시 트리거가 있어야 걸어서 들어간다
+for (const [id, sc] of Object.entries(story.scenes)) {
+  for (const t of succ[id]) { const to = story.scenes[t]; if (to.event !== sc.event && to.event && !WORLD.triggers[t]) err('사건 입구인데 맵 트리거 없음: ' + t); }
+}
+for (const n of Object.values(story.chapters)) if (!WORLD.triggers[n.start]) err('장 시작 장면에 맵 트리거 없음: ' + n.start);
+let prevEnd = null;
+const walkLengths = [];
+for (const id of TRIGGER_ORDER) {
+  const tr = WORLD.triggers[id];
+  if (!tr) continue;
+  const blocked = {};
+  const seenAt = {};
+  for (const c of tr.cast) {
+    if (!story.characters[c.who]) err(id + ': 없는 인물 ' + c.who);
+    if (!WORLD.walkable(c.x, c.y)) err(id + ': ' + c.who + '이 막힌 칸(' + c.x + ',' + c.y + ')에 서 있음');
+    if (seenAt[c.x + ',' + c.y]) err(id + ': 두 인물이 같은 칸 ' + c.x + ',' + c.y);
+    seenAt[c.x + ',' + c.y] = true; blocked[c.x + ',' + c.y] = true;
+  }
+  let contains;
+  if (tr.target.npc) {
+    const c = tr.cast.find((c) => c.who === tr.target.npc);
+    if (!c) { err(id + ': 대상 인물 ' + tr.target.npc + '이 배치되지 않음'); continue; }
+    contains = (x, y) => x === c.x && y === c.y;
+  } else {
+    const o = WORLD.object(tr.target.obj);
+    if (!o) { err(id + ': 없는 사물 ' + tr.target.obj); continue; }
+    contains = (x, y) => x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h;
+  }
+  let start = tr.spawn ? WORLD.SPAWNS[tr.spawn] : prevEnd;
+  if (!start) { err(id + ': 시작 위치를 알 수 없음(첫 트리거엔 spawn 필요)'); continue; }
+  if (!WORLD.walkable(start.x, start.y, blocked)) { // 앱과 같은 규칙: 인물과 겹치면 가장 가까운 빈칸으로
+    const p = WORLD.findPath({ x: start.x, y: start.y }, (x, y) => WORLD.walkable(x, y, blocked), {});
+    if (!p) { err(id + ': 시작 위치 근처에 빈칸 없음'); continue; }
+    let cur = { x: start.x, y: start.y }; for (const d of p) cur = WORLD.stepFrom(cur.x, cur.y, d, {});
+    start = cur;
+  }
+  const path = WORLD.findPath({ x: start.x, y: start.y }, WORLD.adjacentTo({ contains }), blocked);
+  if (!path) { err(id + ': 시작 위치에서 대상까지 걸어갈 수 없음'); continue; }
+  walkLengths.push(id + ' ' + path.length + '칸');
+  let cur = { x: start.x, y: start.y }; for (const d of path) cur = WORLD.stepFrom(cur.x, cur.y, d, blocked);
+  prevEnd = cur;
+}
+if (WORLD.triggers.c1_e3_a && !WORLD.triggers.c1_e3_a.spawn) {
+  // 집 사건은 교문을 지나 걸어야만 닿는지: 교문 칸을 막으면 길이 없어야 함
+  const gateBlocked = { '22,16': true, '22,17': true };
+  const bed = WORLD.object('bed');
+  const p = WORLD.findPath({ x: 8, y: 6 }, WORLD.adjacentTo({ contains: (x, y) => x === bed.x && y >= bed.y && y < bed.y + bed.h }), gateBlocked);
+  if (p) err('교문을 지나지 않고 집에 갈 수 있는 길이 있음');
+}
+
 // ── 7. 보고 ──────────────────────────────
 const decisionScenes = sceneIds.filter((id) => (story.scenes[id].choices || []).length);
 const choiceTotal = sceneIds.reduce((n, id) => n + (story.scenes[id].choices || []).length, 0);
@@ -197,6 +253,7 @@ const lineTotal = sceneIds.reduce((n, id) => n + (story.scenes[id].lines || []).
   + (story.scenes[id].choices || []).reduce((m, c) => m + (c.react || []).length, 0), 0);
 console.log(`장면 ${sceneIds.length}개 · 선택 지점 ${decisionScenes.length}곳 · 선택지 ${choiceTotal}개 · 대사 ${lineTotal}줄 · 사건 ${eventIds.length}개 · 엔딩 ${story.endings.length}종`);
 console.log(`서로 다른 완주 경로: ${totalPaths.toLocaleString()}가지`);
+console.log('맵 이동 거리(최단): ' + walkLengths.join(' · '));
 console.log(`무작위 완주 ${SAMPLES.toLocaleString()}회 엔딩 분포: ` + story.endings.map((e) => `${e.code} ${((endingCount[e.code] || 0) / SAMPLES * 100).toFixed(1)}%`).join(' · '));
 for (const e of story.endings) {
   const r = routeResult[e.code];

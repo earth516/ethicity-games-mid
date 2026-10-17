@@ -97,6 +97,15 @@ h1:focus { outline: none; }
 .player-text { display: grid; min-width: 0; }
 .player-label { font-size: .8rem; color: var(--text-mute); }
 .player-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.look-pick { border: 1px solid var(--border); border-radius: var(--radius-out); padding: 8px 12px 12px; margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.look-pick legend { font-size: .9rem; font-weight: 600; padding: 0 4px; }
+.look-opt { flex: 1 1 8rem; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-in); background: var(--card); cursor: pointer; font-weight: 600; }
+.look-opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.look-opt input { width: 20px; height: 20px; accent-color: var(--accent); }
+.look-icon { width: 28px; height: 28px; border-radius: 50%; background: #F2D2B6; position: relative; flex: none; }
+.look-icon::before { content: ""; position: absolute; left: 2px; right: 2px; top: -2px; height: 12px; border-radius: 12px 12px 4px 4px; background: #4A3426; }
+.look-f::after { content: ""; position: absolute; right: -7px; top: 4px; width: 10px; height: 16px; border-radius: 6px; background: #4A3426; }
+.look-msg { width: 100%; margin: 0; color: var(--danger); }
 .start-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 24px 0 8px; }
 .start-links { display: flex; gap: 16px; }
 .facts { margin: 48px 0 0; padding: 16px 16px 16px 36px; background: var(--surface); border-radius: var(--radius-out); color: var(--text-mute); font-size: .95rem; }
@@ -194,6 +203,23 @@ body[data-view="v-game"] .app { padding-top: 12px; padding-bottom: 16px; }
 }
 .continue { width: 100%; }
 .skip-btn { width: 100%; color: var(--text-mute); }
+
+/* ── 맵 ───────────── */
+body[data-view="v-map"] .app { padding-top: 12px; padding-bottom: 16px; }
+.m-area { font-weight: 600; color: var(--accent); margin-left: 6px; }
+.mission { font-size: 1.05rem; font-weight: 700; margin: 0 0 8px; display: flex; flex-direction: column; gap: 0; }
+.mission-label { font-size: .75rem; font-weight: 600; color: var(--text-mute); }
+.mission:focus { outline: none; }
+.map-wrap { position: relative; border-radius: 22px; overflow: hidden; border: 1px solid var(--border); background: #5E8F55; touch-action: none; }
+#m-canvas { display: block; cursor: pointer; }
+.daycard {
+  position: absolute; inset: 0; margin: 0; display: grid; place-items: center;
+  background: rgba(22, 32, 31, .78); color: #fff; font-size: 1.4rem; font-weight: 800;
+}
+.m-say { min-height: 1.75em; margin: 8px 2px 0; font-size: .95rem; }
+.map-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.map-controls .btn { flex: 1 1 12rem; }
+.map-help { margin-top: 8px; }
 
 /* ── 장 전환·엔딩 ───────────── */
 .event-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-out); padding: 14px 16px; margin-bottom: 12px; }

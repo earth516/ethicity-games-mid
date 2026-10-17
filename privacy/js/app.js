@@ -6,6 +6,7 @@
   'use strict';
 
   var story = window.PRIVACY_STORY;
+  story.triggers = window.PRIVACY_WORLD.triggers; // 사건 입구 장면 앞에 맵 이동을 넣는다
   var E = window.PrivacyEngine;
   var S = window.PrivacyStorage;
   var CFG = window.PRIVACY_CONFIG || { characterImages: {}, defaultAvatar: 'assets/avatar-default.svg', defaultNickname: '플레이어' };
@@ -16,11 +17,12 @@
 
   /* ── 상태 ───────────────────────── */
   var player = S.readPlayer(CFG.defaultNickname);
-  var progress = { v: 1, run: null, explored: {}, endingsSeen: [] };
-  var settings = { speed: 'normal', reduceMotion: false };
+  var progress = { v: 1, run: null, explored: {}, endingsSeen: [], pos: null };
+  var settings = { speed: 'normal', reduceMotion: false, look: null };
   var revealTimer = null, revealQueue = [], revealDone = null;
   var pathBack = 'v-start', reflectBack = 'v-start';
   var noticeMsgs = [];
+  var posTimer = null;
 
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) {
@@ -39,6 +41,7 @@
     if (p && typeof p === 'object' && p.v === 1) {
       if (p.explored && typeof p.explored === 'object') progress.explored = p.explored;
       if (Array.isArray(p.endingsSeen)) progress.endingsSeen = p.endingsSeen.filter(function (c) { return typeof c === 'string'; });
+      if (p.pos && typeof p.pos === 'object' && window.PRIVACY_WORLD.walkable(p.pos.x, p.pos.y)) progress.pos = p.pos;
       if (p.run) {
         if (E.isValidState(story, p.run)) progress.run = p.run;
         else noticeMsgs.push('이전 진행을 이어 할 수 없어 처음부터 시작해요.');
@@ -49,6 +52,7 @@
     if (st && typeof st === 'object') {
       if (SPEED_MS.hasOwnProperty(st.speed)) settings.speed = st.speed;
       settings.reduceMotion = !!st.reduceMotion;
+      if (st.look === 'm' || st.look === 'f') settings.look = st.look;
     } else if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       settings.reduceMotion = true;
     }
@@ -83,10 +87,11 @@
   }
 
   /* ── 화면 전환 ───────────────────── */
-  var VIEWS = ['v-start', 'v-game', 'v-chapter', 'v-ending', 'v-path', 'v-reflect'];
+  var VIEWS = ['v-start', 'v-game', 'v-map', 'v-chapter', 'v-ending', 'v-path', 'v-reflect'];
   var current = 'v-start';
   function show(id, focusEl) {
     stopReveal();
+    if (id !== 'v-map') window.PrivacyMap.hide();
     VIEWS.forEach(function (v) { $(v).hidden = v !== id; });
     current = id;
     document.body.setAttribute('data-view', id);
@@ -107,7 +112,24 @@
   function isOfficialAvatar() { return !!(player.character && (CFG.characterImages || {})[player.character]); }
 
   /* ── 시작 화면 ───────────────────── */
+  // 맵 주인공 모습: 공통 캐릭터 코드에 매핑이 있으면 그것, 없으면 학생이 고른 것(이 게임 설정에만 저장)
+  function commonLook() { var m = CFG.playerLooks || {}; return player.character && (m[player.character] === 'm' || m[player.character] === 'f') ? m[player.character] : null; }
+  function playerLook() { return commonLook() || settings.look; }
+  function renderLookPick() {
+    $('look-pick').hidden = !!commonLook();
+    Array.prototype.forEach.call(document.querySelectorAll('input[name=look]'), function (r) { r.checked = r.value === settings.look; });
+    $('look-msg').hidden = true;
+  }
+  function needLook() {
+    if (playerLook()) return false;
+    $('look-msg').hidden = false;
+    var first = document.querySelector('input[name=look]');
+    if (first) first.focus();
+    return true;
+  }
+
   function renderStart() {
+    renderLookPick();
     $('player-name').textContent = player.nickname;
     $('player-name').title = player.nickname;
     var img = $('player-avatar');
@@ -345,8 +367,17 @@
   function routeRun(animate) {
     var run = progress.run;
     if (run.screen === 'scene') renderGame(animate);
+    else if (run.screen === 'map') renderMap();
     else if (run.screen === 'chapter') renderChapter();
     else if (run.screen === 'ending') renderEnding(true);
+  }
+
+  /* ── 맵 ─────────────────────────── */
+  function renderMap() {
+    var run = progress.run;
+    $('btn-map-undo').disabled = !run.history.length;
+    show('v-map', $('m-mission').parentNode);
+    window.PrivacyMap.show(run);
   }
 
   /* ── 장 전환 ───────────────────────── */
@@ -570,18 +601,23 @@
 
   function startNew() {
     stopReveal();
+    progress.pos = null;
     setRun(E.createState(story));
     routeRun(true);
   }
 
   /* ── 이벤트 연결 ─────────────────── */
   function bind() {
+    Array.prototype.forEach.call(document.querySelectorAll('input[name=look]'), function (r) {
+      r.addEventListener('change', function () { settings.look = r.value; $('look-msg').hidden = true; saveSettings(); });
+    });
     $('btn-new').addEventListener('click', function () {
+      if (needLook()) return;
       if (progress.run && progress.run.screen !== 'ending') {
         ask('처음부터 시작할까요?', '지금까지의 진행은 지워져요. 완료한 결과와 지난 선택 기록은 남아요.', '처음부터', startNew);
       } else startNew();
     });
-    $('btn-continue').addEventListener('click', function () { routeRun(false); });
+    $('btn-continue').addEventListener('click', function () { if (needLook()) return; routeRun(false); });
     $('btn-start-path').addEventListener('click', function () { renderPath('v-start'); });
     $('btn-start-reflect').addEventListener('click', function () { renderReflect('v-start'); });
     $('btn-chapter-go').addEventListener('click', function () { setRun(E.advance(story, progress.run)); routeRun(true); });
@@ -593,6 +629,8 @@
     $('btn-reflect-back').addEventListener('click', function () { goTo(reflectBack); });
     $('btn-reflect-home').addEventListener('click', renderStart);
 
+    $('btn-map-undo').addEventListener('click', function () { $('btn-undo').click(); });
+    $('btn-map-menu').addEventListener('click', function () { syncMenu(); openOverlay('menu'); });
     $('btn-undo').addEventListener('click', function () {
       var run = progress.run;
       if (!run || !run.history.length) return;
@@ -621,7 +659,7 @@
       ask('이 게임 기록을 모두 지울까요?', '‘공유한 순간’의 진행, 지난 선택 기록, 완료 결과가 지워져요. 공통 캐릭터와 다른 게임 기록은 지우지 않아요.', '지우기', function () {
         S.remove(S.KEYS.progress);
         S.remove(S.KEYS.result);
-        progress = { v: 1, run: null, explored: {}, endingsSeen: [] };
+        progress = { v: 1, run: null, explored: {}, endingsSeen: [], pos: null };
         renderStart();
       });
     });
@@ -651,6 +689,18 @@
   loadAll();
   applySettings();
   bind();
+  window.PrivacyMap.init({
+    story: story,
+    fill: fill,
+    playerName: function () { return player.nickname; },
+    playerLook: function () { return playerLook() || 'm'; },
+    evalCond: function (c) { return E.evalCond(c, progress.run); },
+    instant: function () { return settings.speed === 'instant'; },
+    reduceMotion: function () { return settings.reduceMotion; },
+    loadPos: function () { return progress.pos; },
+    savePos: function (p) { progress.pos = p; clearTimeout(posTimer); posTimer = setTimeout(saveProgress, 400); },
+    onEnter: function () { clearTimeout(posTimer); setRun(E.advance(story, progress.run)); routeRun(true); }
+  });
   renderStart();
   if (noticeMsgs.length) showNotice(noticeMsgs.join(' '));
 

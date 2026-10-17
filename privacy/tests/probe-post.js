@@ -30,6 +30,13 @@
       var v = view();
       if (v === 'v-ending') break;
       if (v === 'v-chapter') { $('#btn-chapter-go').click(); continue; }
+      if (v === 'v-map') {
+        if (opts.upto != null && opts.stopAtMap && i >= opts.upto) return i;
+        if (opts.walk) await walkToTarget(opts);
+        else { $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); }
+        await wait(opts.delay || 0);
+        continue;
+      }
       if (v !== 'v-game') { fail.push('예상 밖 화면: ' + v); break; }
       var skip = $('.skip-btn');
       if (skip) { skip.click(); continue; }
@@ -55,6 +62,23 @@
     return i;
   }
 
+  function key(k, type) { document.dispatchEvent(new KeyboardEvent(type || 'keydown', { key: k, bubbles: true })); }
+  var ARROW = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
+  async function walkToTarget(opts) {
+    var M = PrivacyMap.debug, route = M.route();
+    if (!route) { fail.push('맵: 대상까지 길 없음'); return; }
+    opts.walked = (opts.walked || 0) + route.length;
+    for (var k = 0; k < route.length; k++) {
+      key(ARROW[route[k]]); key(ARROW[route[k]], 'keyup');
+      var g = 0; await wait(16);
+      while (M.me().moving && g++ < 100) await wait(16);
+      var area = M.me().area;
+      if (opts.areas && opts.areas[opts.areas.length - 1] !== area) opts.areas.push(area);
+    }
+    if (!M.nearTarget()) fail.push('맵: 걸어서 대상 옆에 도착하지 못함 ' + JSON.stringify(M.me()));
+    key(' ');
+    var g2 = 0; while (view() === 'v-map' && g2++ < 200) await wait(20);
+  }
   function checkOthersKept() {
     var same = Object.keys(P.OTHER).every(function (k) { return ls(k) === P.OTHER[k]; });
     ok(same, '다른 게임 저장 데이터 보존');
@@ -100,6 +124,61 @@
       $('#btn-new').click();
       await play(R[code], { keyboard: s === 'route-B-key' });
       await finishChecks(code, R[code].length);
+    }
+
+    else if (s === 'walk-A') {
+      $('#btn-new').click();
+      var o = { walk: true, areas: [] };
+      await play(R.A, o);
+      ok(o.walked > 200, '방향키로 실제 걸은 칸 수 ' + o.walked);
+      var seq = o.areas.join('>');
+      ok(/교문>마을 길>우리 집 앞>내 방/.test(seq), '교문 → 마을 길 → 우리 집 → 내 방 순서로 이동');
+      ok((seq.match(/내 방/g) || []).length >= 3, '집 사건 3번 모두 걸어서 귀가 (' + (seq.match(/내 방/g) || []).length + '회)');
+      await finishChecks('A', R.A.length);
+    }
+
+    else if (s === 'tap') {
+      $('#btn-new').click();
+      await play(R.A, { upto: 1, stopAtMap: true });
+      ok(view() === 'v-map', '첫 사건 전에 맵 화면');
+      ok(/하윤/.test($('#m-mission').textContent), '지금 할 일 표시: ' + $('#m-mission').textContent);
+      var pt = PrivacyMap.debug.tileToClient(5, 4); // 하윤 자리
+      $('#m-canvas').dispatchEvent(new PointerEvent('pointerdown', { clientX: pt.x, clientY: pt.y, bubbles: true }));
+      var g = 0; while (view() === 'v-map' && g++ < 300) await wait(20);
+      ok(view() === 'v-game' && PrivacyApp.state().scene === 'c1_e1_a', '하윤을 누르면 걸어가서 정산 장면 시작 ' + JSON.stringify([pt, PrivacyMap.debug.me(), $('#m-say').textContent, $('#m-canvas').getBoundingClientRect().width]));
+      // 맵에서 되돌리기: 다음 맵으로 간 뒤 되돌리면 이전 장면 선택 전으로
+      await play(R.A, { from: 1, upto: 3, stopAtMap: true });
+      ok(view() === 'v-map' && PrivacyApp.state().screen === 'map', '두 번째 사건 전 맵');
+      $('#btn-map-undo').click(); await wait(); confirmYes(); await wait();
+      ok(view() === 'v-game' && PrivacyApp.state().scene === 'c1_e1_b' && !PrivacyApp.state().reaction, '맵에서 되돌리기 → 직전 선택 전으로');
+      $('#btn-map-act');
+      // 사물 조사·다른 인물 대사
+      await play(R.A, { from: 2, upto: 3, stopAtMap: true });
+      $('#btn-map-act').click(); await wait();
+      ok(view() === 'v-map' && $('#m-say').textContent.length > 0, '대상이 아닌 곳에서 누르면 안내 문구');
+    }
+
+    else if (s === 'map-resume') {
+      if (P.phase === 0) {
+        $('#btn-new').click();
+        await play(R.A, { upto: 1, stopAtMap: true });
+        key('ArrowLeft'); key('ArrowLeft', 'keyup'); await wait(400);
+        key('ArrowLeft'); key('ArrowLeft', 'keyup'); await wait(400);
+        var m0 = PrivacyMap.debug.me();
+        sessionStorage.setItem('probe-saved', JSON.stringify(m0));
+        await wait(600);
+        sessionStorage.setItem('probe-phase', '1'); carry();
+        location.reload();
+        return;
+      }
+      var m0b = JSON.parse(sessionStorage.getItem('probe-saved'));
+      ok(!$('#btn-continue').hidden, '맵에서 새로고침 → 이어 하기');
+      $('#btn-continue').click(); await wait();
+      var m1 = PrivacyMap.debug.me();
+      ok(view() === 'v-map' && m1.x === m0b.x && m1.y === m0b.y && m0b.x === 6, '같은 위치에서 재개 (' + m1.x + ',' + m1.y + ')');
+      $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); await wait();
+      ok(view() === 'v-game' && PrivacyApp.state().scene === 'c1_e1_a', '재개 후 사건 시작');
+      sessionStorage.removeItem('probe-phase'); sessionStorage.removeItem('probe-carry');
     }
 
     else if (s === 'no-player' || s === 'damaged-player' || s === 'wrong-player') {
@@ -182,6 +261,10 @@
 
     else if (s === 'blocked') {
       ok(!$('#notice').hidden && /저장할 수 없/.test($('#notice').textContent), '저장소 불가 안내');
+      ok(!$('#look-pick').hidden, '공통 캐릭터가 없으면 모습 고르기 표시');
+      $('#btn-new').click(); await wait();
+      ok(view() === 'v-start' && !$('#look-msg').hidden, '모습을 안 고르면 시작 전 안내');
+      $$('input[name=look]')[1].click(); await wait();
       $('#btn-new').click();
       await play(R.C);
       ok(view() === 'v-ending' && $('#e-eyebrow').textContent === '엔딩 C', '저장소 없이도 엔딩까지 진행');
@@ -247,6 +330,16 @@
     }
 
     else if (s.indexOf('shot-') === 0) { // 스크린샷용: 특정 지점까지 진행 후 멈춤(결과 출력 없음)
+      if (s === 'shot-map' || s === 'shot-road') {
+        $('#btn-new').click();
+        await play(R.A, { upto: s === 'shot-map' ? 1 : 5, stopAtMap: true });
+        if (s === 'shot-road') {
+          var rt = PrivacyMap.debug.route().slice(0, 30);
+          for (var q = 0; q < rt.length; q++) { key(ARROW[rt[q]]); key(ARROW[rt[q]], 'keyup'); await wait(16); while (PrivacyMap.debug.me().moving) await wait(16); }
+        } else { $('#btn-map-skip').click(); }
+        await wait(300);
+        return;
+      }
       var stop = { 'shot-start': -1, 'shot-game': 9, 'shot-react': 9, 'shot-ending': null, 'shot-path': null }[s];
       if (stop === -1) return;
       $('#btn-new').click();
