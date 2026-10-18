@@ -21,7 +21,7 @@
       } catch (_) { /* file:// may block pixel reads; use the full image. */ }
       assets[name] = { image: im, box: box };
     };
-    im.src = 'assets/outdoor/' + name + '.png';
+    window.PrivacyImg.load(im, 'assets/outdoor/' + name + '.png');
   });
   function draw(ctx, name, x, bottom, width, height, tile, cam) {
     var a = assets[name]; if (!a) return false;

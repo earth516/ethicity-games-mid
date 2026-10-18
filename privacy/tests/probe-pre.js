@@ -33,6 +33,11 @@
       localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.settings.v1', instant); break;
     case 'corrupt-progress': localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.progress.v1', '{"v":1,"run":'); localStorage.setItem('ethicity.privacy.settings.v1', instant); break;
     case 'stale-progress': localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.progress.v1', '{"v":1,"run":{"v":1,"screen":"scene","scene":"사라진_장면","stats":{},"trust":{},"flags":{},"history":[],"visited":[]},"explored":{"pro_1":["sns"]},"endingsSeen":["B"]}'); localStorage.setItem('ethicity.privacy.settings.v1', instant); break;
+    case 'webp-fallback': // webp를 못 받는 환경 흉내: .webp 요청을 없는 파일로
+      var wDesc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+      Object.defineProperty(HTMLImageElement.prototype, 'src', { configurable: true, get: function () { return wDesc.get.call(this); },
+        set: function (v) { wDesc.set.call(this, /\.webp$/.test(String(v)) ? String(v).replace(/[^/]+\.webp$/, '__missing__.webp') : v); } });
+      localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.settings.v1', instant); break;
     case 'sound': // 소리 장치 흉내: 수신음이 몇 번 났는지 센다
       window.__beeps = 0;
       var noop = function () {};

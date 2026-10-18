@@ -30,7 +30,7 @@
       } catch (_) { /* Full-image fallback for file:// pixel restrictions. */ }
       assets[name] = { image: im, box: b };
     };
-    im.src = 'assets/school/' + name + '.png';
+    window.PrivacyImg.load(im, 'assets/school/' + name + '.png');
   });
   function sprite(ctx, name, x, y, w, h, tile, cam) {
     var a = assets[name]; if (!a) return false;

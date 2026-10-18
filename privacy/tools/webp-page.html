@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>webp 변환(도구용)</title></head>
+<body>
+<!-- tools/to-webp.mjs가 헤드리스 Edge로 연다: ?q=0.82&f=assets/a.png&f=assets/b.png
+     그림을 원래 크기 그대로 캔버스에 그려 webp(투명도 유지)로 내보내고, 결과를 <pre>에 남긴다 -->
+<script>
+(async function () {
+  var p = new URLSearchParams(location.search), q = Number(p.get('q') || 0.82), out = [];
+  for (var f of p.getAll('f')) {
+    try {
+      var im = await new Promise(function (ok, no) { var i = new Image(); i.onload = function () { ok(i); }; i.onerror = function () { no(new Error('불러오기 실패')); }; i.src = '../' + f; });
+      var c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
+      c.getContext('2d').drawImage(im, 0, 0);
+      // 동기 인코딩(헤드리스 가상 시간에서도 끝까지 기다릴 필요 없게)
+      var url = c.toDataURL('image/webp', q);
+      if (url.indexOf('data:image/webp') !== 0) throw new Error('webp 인코딩 안 됨');
+      var data = url.split(',')[1];
+      out.push({ f: f, w: c.width, h: c.height, data: data });
+    } catch (e) { out.push({ f: f, error: String(e && e.message || e) }); }
+  }
+  var pre = document.createElement('pre'); pre.id = 'webp-out'; pre.textContent = JSON.stringify(out); document.body.appendChild(pre);
+})();
+</script>
+</body></html>

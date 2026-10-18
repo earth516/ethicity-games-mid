@@ -264,6 +264,7 @@ body[data-view="v-chapter"] .hud { display: none; }
 .ico-quest {
   display: inline-block; height: 1.5em; width: calc(1.5em * 630 / 669); vertical-align: -0.4em; margin: 0 1px;
   background: url("../assets/icons/quest.png") no-repeat calc(-1.5em * 313 / 669) calc(-1.5em * 293 / 669) / calc(1.5em * 1254 / 669) auto;
+  background-image: image-set(url("../assets/icons/quest.webp") type("image/webp"), url("../assets/icons/quest.png") type("image/png"));
 }
 /* 짧은 안내 한 줄(문 드나들기·길 안내) */
 .m-say {
@@ -446,7 +447,8 @@ h2 .event-topic { display: block; margin-top: 2px; }
 .finale-word { font-weight: 700; }
 .finale-word.up { color: #7FD8C9; }
 .finale-word.down { color: #8F9893; }
-.finale-end { font-family: var(--pixel); font-size: 1.2rem; margin: 0 0 16px; }
+.finale-end { font-family: var(--pixel); font-size: 1.2rem; margin: 0 0 6px; }
+.finale-odds { color: #C9CFCB; font-size: .95rem; margin: 0 0 20px; }
 .finale-skip {
   position: fixed; top: 12px; right: 12px; z-index: 61; padding: 4px 12px; border-radius: 8px; cursor: pointer;
   background: none; border: 1px solid #555; color: #C9CFCB; font: inherit; font-size: .85rem;

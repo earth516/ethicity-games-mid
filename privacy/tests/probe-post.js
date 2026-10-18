@@ -368,16 +368,33 @@
       ok($$('.ico-quest').every(function (im) { return /quest\.png/.test(getComputedStyle(im).backgroundImage) && im.getAttribute('role') === 'img' && !!im.getAttribute('aria-label'); }), 'quest.png 사용·대체 글자 있음');
     }
 
+    else if (s === 'webp' || s === 'webp-fallback') {
+      var WL = window.PRIVACY_WEBP || {};
+      ok(Object.keys(WL).length >= 30, 'webp 목록 ' + Object.keys(WL).length + '장');
+      $('#btn-new').click();
+      await play(R.A, { upto: 1, stopAtMap: true });
+      var gw = 0; while (!(window.PrivacySchool && window.PrivacySchool.ready() && window.PrivacyOutdoor.ready('tree') && window.PrivacyNeighborhood.ready('house-brick')) && gw++ < 100) await wait(50);
+      ok(window.PrivacySchool.ready() && window.PrivacyOutdoor.ready('tree') && window.PrivacyNeighborhood.ready('house-brick'), '학교·바깥·주택가 그림이 모두 뜸');
+      var names = performance.getEntriesByType('resource').map(function (e) { return decodeURI(new URL(e.name).pathname).replace(/^\/privacy\//, ''); });
+      var pngHits = names.filter(function (n) { return /\.png$/.test(n) && WL[n]; });
+      var webpHits = names.filter(function (n) { return /\.webp$/.test(n); });
+      if (s === 'webp') {
+        ok(pngHits.length === 0, '변환된 그림은 png를 받지 않음 ' + pngHits.slice(0, 4).join(','));
+        ok(webpHits.length >= 25, 'webp로 받음 ' + webpHits.length + '장');
+        ok(/hero-boy\.webp$/.test($$('#look-pick img')[0].currentSrc), '타이틀 일러스트도 webp ' + $$('#look-pick img')[0].currentSrc);
+      } else ok(pngHits.length >= 20, 'webp가 안 되면 png로 되돌아감 ' + pngHits.length + '장');
+    }
+
     else if (s === 'portrait') {
       function pv() { var p = $('#talk-portrait'); return p && !p.hidden && getComputedStyle(p).display !== 'none' ? p.getAttribute('src') : null; }
       $('#btn-new').click(); await wait(30);
       PrivacyApp.setSpeed('normal'); // 한 줄씩(한꺼번에 모드는 초상화 없이)
       $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); await wait(50);
-      ok(/portraits\/hayun\.png$/.test(pv() || ''), '오프닝 소개: 하윤 초상화 ' + pv());
+      ok(/portraits\/hayun\.(png|webp)$/.test(pv() || ''), '오프닝 소개: 하윤 초상화 ' + pv());
       var pr = $('#talk-portrait').getBoundingClientRect(), tr = $('#talk').getBoundingClientRect(), mc = $('#v-map .map-controls').getBoundingClientRect();
       ok(pr.bottom <= tr.top + 16 && pr.bottom <= mc.top, '초상화는 대화창 위에 서고 아래 버튼을 가리지 않음');
       var sawMinjun = false, gg = 0;
-      while (!$('#talk').hidden && gg++ < 20) { if (/minjun\.png$/.test(pv() || '')) sawMinjun = true; $('#btn-talk-next').click(); await wait(30); }
+      while (!$('#talk').hidden && gg++ < 20) { if (/minjun\.(png|webp)$/.test(pv() || '')) sawMinjun = true; $('#btn-talk-next').click(); await wait(30); }
       ok(sawMinjun, '민준이 말하는 줄에선 민준 초상화');
       ok(pv() === null, '대사가 끝나면 초상화도 사라짐');
       PrivacyApp.setSpeed('instant');
@@ -388,7 +405,7 @@
       var pd = PrivacyMap.debug.tileToClient(8, 2); // 도현
       $('#m-canvas').dispatchEvent(new PointerEvent('pointerdown', { clientX: pd.x, clientY: pd.y, bubbles: true }));
       var gt = 0; while ($('#talk').hidden && gt++ < 300) await wait(20);
-      ok(/portraits\/dohyun\.png$/.test(pv() || ''), '맵에서 도현에게 말 걸기: 도현 초상화');
+      ok(/portraits\/dohyun\.(png|webp)$/.test(pv() || ''), '맵에서 도현에게 말 걸기: 도현 초상화');
       key(' '); await wait(30);
       // 사물 조사(해설)엔 초상화 없음: 교탁(5,2) 옆으로 가서 조사
       var rt = PrivacyMap.debug.routeTo(5, 3) || [];
@@ -575,6 +592,7 @@
       });
       ok(okBonds, '친구마다 얼굴 + 친해짐/그대로/멀어짐(실제 관계 변화와 일치) ' + bonds.map(function (b) { return b.textContent; }).join(' / '));
       ok(/엔딩 D/.test($('#finale .finale-end').textContent), '마지막에 엔딩 이름');
+      ok(!!$('#finale .finale-odds') && $('#finale .finale-odds').textContent.indexOf(window.PRIVACY_ODDS.D + '%') >= 0 && /아무거나 골랐다면/.test($('#finale .finale-odds').textContent), '“아무거나 골랐다면” 확률: ' + ($('#finale .finale-odds') || {}).textContent);
       $('#finale-go').click(); await wait(50);
       ok($('#finale').hidden && view() === 'v-ending' && /엔딩 D/.test($('#e-eyebrow').textContent), '결과 보기 → 엔딩 페이지');
       $('#btn-end-path').click(); await wait(); $('#btn-path-back').click(); await wait();

@@ -127,6 +127,16 @@ node privacy/tests/serve.mjs 8080      # → http://127.0.0.1:8080/privacy/
 - **그림 교체**: `assets/sprites/char_<id>.png`(id: hayun·dohyun·seoa·minjun·teacher·friend·player_m·player_f — 48×72 칸, 가로 4프레임 × 세로 아래·왼·오·위), `minjun_sleep.png`를 넣으면 자동으로 그 그림을 쓴다. 없으면 임시 도형(원+머리글자+이름표). 타일·가구는 `tiles.png`+`tiles.json`(48px 격자, 34종)을 읽어 그린다(`file://`에선 `js/map.js`의 내장 좌표 사용). 칸 크기는 시트에서 자동 인식하고 화면에는 정수배(1배·2배)로만 그려 도트가 뭉개지지 않는다.
 - **현재 그림**: Codex 납품 v2(48×72 캐릭터 8장·타일 34종, 내장 이미지 생성으로 새로 그림 — `example/sprite-delivery-v2/`에 원본·검증 기록, 팀 레포엔 올리지 않음). 공용 PC 그림에 ‘3’이 찍혀 있어 1·2번은 코드로 번호를 덧씌운다(번호 없는 PC 그림을 받으면 제거 가능).
 
+## 그림 용량(webp)
+
+```bash
+node privacy/tools/to-webp.mjs assets/school assets/outdoor ...   # 폴더·파일 단위, 원본 PNG는 그대로
+```
+
+- 헤드리스 Edge 캔버스로 같은 크기의 webp(투명도 유지)를 만들고 `js/webp-list.js` 목록을 다시 쓴다. 게임은 목록에 있는 그림을 `.webp`로 먼저 불러오고 실패하면 `.png`로 되돌아간다(`js/img-src.js`).
+- 2026-10-18 변환: 게임이 불러오는 그림 39장 47.8MB → 4.8MB(90%). 캐릭터 걷기 시트·타일 묶음(`sprites/char_*`·`tiles.png`)은 제외.
+- Codex가 새 그림을 주면 그 폴더에 한 번 더 돌리면 된다(그림 크기는 바꾸지 않으므로 코드의 잘라내기 좌표는 그대로).
+
 ## 검증
 
 ```bash

@@ -16,7 +16,7 @@
         if (r >= l) b = [l, t, r - l + 1, d - t + 1];
       } catch (_) { /* file:// fallback */ }
       assets[name] = { image: im, box: b };
-    }; im.src = 'assets/room/' + name + '.png';
+    }; window.PrivacyImg.load(im, 'assets/room/' + name + '.png');
   });
   function sprite(ctx, name, x, y, w, h, tile, cam) {
     var a = assets[name]; if (!a) return false;

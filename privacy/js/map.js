@@ -13,7 +13,7 @@
   var questIcon = null;
   var questImage = new Image();
   questImage.onload = function () { questIcon = questImage; };
-  questImage.src = 'assets/icons/quest.png';
+  window.PrivacyImg.load(questImage, 'assets/icons/quest.png');
   var ROW = { down: 0, left: 1, right: 2, up: 3 };
   var KEY_DIR = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right', W: 'up', S: 'down', A: 'left', D: 'right' };
   var TILE_COLOR = {
@@ -39,7 +39,7 @@
   var houseExterior = null;
   var houseImage = new Image();
   houseImage.onload = function () { houseExterior = window.PrivacyPalette.image(houseImage, false); };
-  houseImage.src = SPRITE_DIR + 'house-exterior.png';
+  window.PrivacyImg.load(houseImage, SPRITE_DIR + 'house-exterior.png');
 
   /* ── 타일·가구 아틀라스(assets/sprites/tiles.png + tiles.json) ──
    * tiles.json을 읽지 못하는 환경(file:// 등)에선 아래 내장 좌표를 쓴다(납품 v2 기준).
@@ -304,7 +304,7 @@
   var PORTRAIT = { hayun: 1, seoa: 1, dohyun: 1, minjun: 1, teacher: 1, me: 1 };
   function portraitFor(who) {
     if (!PORTRAIT[who]) return null;
-    return 'assets/portraits/' + (who === 'me' ? 'player_' + o.playerLook() : who) + '.png';
+    return window.PrivacyImg.src('assets/portraits/' + (who === 'me' ? 'player_' + o.playerLook() : who) + '.png');
   }
   function talk(lines) {
     return window.PrivacyTalk.open(lines, { instant: o.instant(), portrait: portraitFor, onLine: function (l) {
