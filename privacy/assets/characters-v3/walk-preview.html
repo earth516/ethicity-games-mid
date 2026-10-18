@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>걷기 시트 검토 · 7명</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f7fafa;color:#16201f;font:16px/1.7 Pretendard,system-ui,sans-serif}main{max-width:1160px;margin:auto;padding:24px}h1{font-size:26px;margin:0}p{margin:8px 0;color:#536360}.controls{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:20px 0}button,select{font:inherit;padding:6px 12px;border:1px solid #aac1bd;border-radius:6px;background:white;color:inherit}button{cursor:pointer}button:focus-visible,select:focus-visible{outline:3px solid #0f766e;outline-offset:3px}article{background:white;border:1px solid #dee9e8;border-radius:8px;padding:16px;margin:16px 0}h2{font-size:19px;margin:0}.directions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.direction{margin:8px 0}.samples{display:flex;align-items:end;gap:12px;flex-wrap:wrap}figure{margin:0}figcaption{font-size:12px;color:#536360}canvas{display:block;background-color:#fff;background-image:conic-gradient(#e6ebea 25%,transparent 0 50%,#e6ebea 0 75%,transparent 0);background-size:12px 12px;outline:1px solid #bacac7}small{display:block;color:#536360}.error{color:#a12626}#status{font-size:14px}@media(max-width:760px){.directions{grid-template-columns:repeat(2,minmax(0,1fr))}main{padding:16px}}@media(max-width:400px){.samples{gap:8px}}
+</style>
+</head>
+<body><main>
+<h1>7명 걷기 시트 · 검토 후보</h1>
+<p>실제 이미지의 가로·세로를 각각 4등분합니다. 자동 정렬·잘라내기·보정 없이 48×72와 96×144로 표시합니다.</p>
+<p>행: 아래 → 왼쪽 → 오른쪽 → 위 · 열: 기본 → 걸음 A → 기본 → 걸음 B.<br>생성 시트의 방향, 발동작, 흔들림, 잔여 픽셀은 별도 육안 검토가 필요합니다.</p>
+<div class="controls"><button id="toggle" type="button">일시 정지</button><label>프레임 <select id="frame"><option value="0">1 · 기본</option><option value="1">2 · 걸음 A</option><option value="2">3 · 기본</option><option value="3">4 · 걸음 B</option></select></label><span id="status" role="status">이미지 확인 중…</span></div>
+<div id="cast"></div>
+</main>
+<script>
+'use strict';
+const ids=['boy','girl','hayun','seoa','dohyun','minjun','teacher'];
+const labels=['남학생','여학생','하윤','서아','도현','민준','선생님'];
+const directions=['down','left','right','up'];
+const directionLabels=['아래','왼쪽','오른쪽','위'];
+const samples=[];
+window.assetChecks=[];
+window.walkState={frame:0,paused:matchMedia('(prefers-reduced-motion: reduce)').matches};
+const toggle=document.querySelector('#toggle');
+const frameSelect=document.querySelector('#frame');
+function render(){
+  for(const {image,canvas,row} of samples){
+    const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);
+    if(!image.naturalWidth)continue;
+    const w=image.naturalWidth/4,h=image.naturalHeight/4;
+    ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+    ctx.drawImage(image,window.walkState.frame*w,row*h,w,h,0,0,canvas.width,canvas.height);
+  }
+  frameSelect.value=String(window.walkState.frame);
+  toggle.textContent=window.walkState.paused?'재생':'일시 정지';
+  toggle.setAttribute('aria-pressed',String(window.walkState.paused));
+}
+window.setWalkFrame=function(frame){window.walkState.frame=frame;window.walkState.paused=true;render();};
+toggle.addEventListener('click',()=>{window.walkState.paused=!window.walkState.paused;render();});
+frameSelect.addEventListener('change',()=>window.setWalkFrame(Number(frameSelect.value)));
+setInterval(()=>{if(!window.walkState.paused){window.walkState.frame=(window.walkState.frame+1)%4;render();}},180);
+// All alpha > 0 counts as occupied, including faint generated residue.
+function measure(image,id){
+  const width=image.naturalWidth,height=image.naturalHeight;
+  const result={id,file:`walk-${id}.png`,width,height,gridValid:width%4===0&&height%4===0&&width*3===height*2,cells:[]};
+  if(!result.gridValid)return result;
+  const cw=width/4,ch=height/4;
+  result.cellWidth=cw;result.cellHeight=ch;
+  const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(image,0,0);
+  const pixels=ctx.getImageData(0,0,width,height).data;
+  let transparentPixels=0;
+  for(let row=0;row<4;row++)for(let col=0;col<4;col++){
+    let minX=cw,minY=ch,maxX=-1,maxY=-1,occupied=0,alphaSum=0,transparent=0;
+    const edges={left:0,right:0,top:0,bottom:0};
+    const boundaryAlphaHistogram=Array(256).fill(0);
+    const thresholds=[1,16,128].map(alpha=>({alpha,minX:cw,minY:ch,maxX:-1,maxY:-1,count:0,edgeBounds:{left:null,right:null,top:null,bottom:null}}));
+    for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){
+      const alpha=pixels[((row*ch+y)*width+col*cw+x)*4+3];
+      if(x===0||x===cw-1||y===0||y===ch-1)boundaryAlphaHistogram[alpha]++;
+      for(const t of thresholds){
+        if(alpha<t.alpha)continue;
+        t.count++;t.minX=Math.min(t.minX,x);t.minY=Math.min(t.minY,y);t.maxX=Math.max(t.maxX,x);t.maxY=Math.max(t.maxY,y);
+        for(const [side,touches,position] of [['left',x===0,y],['right',x===cw-1,y],['top',y===0,x],['bottom',y===ch-1,x]]){
+          if(!touches)continue;
+          const bound=t.edgeBounds[side]||(t.edgeBounds[side]={min:position,max:position,count:0});
+          bound.min=Math.min(bound.min,position);bound.max=Math.max(bound.max,position);bound.count++;
+        }
+      }
+      if(alpha===0){transparent++;continue;}
+      occupied++;alphaSum+=alpha;minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y);
+      if(x===0)edges.left++;if(x===cw-1)edges.right++;if(y===0)edges.top++;if(y===ch-1)edges.bottom++;
+    }
+    transparentPixels+=transparent;
+    const bbox=occupied?{x:minX,y:minY,width:maxX-minX+1,height:maxY-minY+1}:null;
+    result.cells.push({row,col,direction:directions[row],pose:['neutral','stepA','neutral','stepB'][col],bbox,occupiedPixels:occupied,transparentPixels:transparent,occupancy:occupied/(cw*ch),alphaCoverage:alphaSum/(255*cw*ch),bboxOccupancy:bbox?bbox.width*bbox.height/(cw*ch):0,edgePixels:edges,edgeClipping:Object.values(edges).some(Boolean),empty:occupied===0});
+    Object.assign(result.cells[result.cells.length-1],{boundaryAlphaHistogram,thresholds:Object.fromEntries(thresholds.map(t=>[t.alpha,{
+      bbox:t.count?{x:t.minX,y:t.minY,width:t.maxX-t.minX+1,height:t.maxY-t.minY+1}:null,
+      occupiedPixels:t.count,baseline:t.count?t.maxY:null,edgeBounds:t.edgeBounds,
+      edgeClipping:Object.values(t.edgeBounds).some(Boolean)
+    }]))});
+  }
+  result.baselinesByRow=directions.map((direction,row)=>({direction,row,thresholds:Object.fromEntries([1,16,128].map(alpha=>{
+    const values=result.cells.filter(c=>c.row===row).map(c=>c.thresholds[alpha].baseline);
+    const present=values.filter(v=>v!==null),min=present.length?Math.min(...present):null,max=present.length?Math.max(...present):null;
+    return [alpha,{values,min,max,range:present.length?max-min:null}];
+  }))}));
+  result.transparentPixels=transparentPixels;
+  return result;
+}
+window.walkReady=Promise.all(ids.map(async(id,index)=>{
+  const article=document.createElement('article');
+  article.innerHTML=`<h2>${labels[index]} · ${id}</h2><small>walk-${id}.png</small><div class="directions"></div><small class="result">불러오는 중…</small>`;
+  document.querySelector('#cast').append(article);
+  const image=new Image();
+  for(let row=0;row<4;row++){
+    const group=document.createElement('div');group.className='direction';group.innerHTML=`<div>${directionLabels[row]}</div><div class="samples"></div>`;
+    for(const scale of [1,2]){
+      const figure=document.createElement('figure'),canvas=document.createElement('canvas');
+      canvas.width=48*scale;canvas.height=72*scale;canvas.setAttribute('role','img');canvas.setAttribute('aria-label',`${labels[index]} ${directionLabels[row]} ${canvas.width}×${canvas.height}`);
+      const caption=document.createElement('figcaption');caption.textContent=`${canvas.width}×${canvas.height}`;
+      figure.append(canvas,caption);group.querySelector('.samples').append(figure);samples.push({image,canvas,row});
+    }
+    article.querySelector('.directions').append(group);
+  }
+  let result;
+  try{
+    await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(Error('이미지 누락 또는 디코딩 실패'));image.src=`walk-${id}.png`;});
+    result=measure(image,id);
+    const empty=result.cells.filter(c=>c.empty).length,edges=result.cells.filter(c=>c.edgeClipping).length;
+    article.querySelector('.result').textContent=`${result.width}×${result.height} · ${result.gridValid?'4×4 / 셀 2:3':'격자 규격 오류'} · 빈 셀 ${empty} · 경계 접촉 ${edges} (잘림 의심)`;
+    if(result.gridValid){
+      article.querySelector('.result').textContent+=` · α≥16 접촉 ${result.cells.filter(c=>c.thresholds[16].edgeClipping).length} · α≥128 접촉 ${result.cells.filter(c=>c.thresholds[128].edgeClipping).length}`;
+      result.baselinesByRow.forEach((r,row)=>{
+        const note=document.createElement('small');
+        note.textContent=[16,128].map(a=>{const b=r.thresholds[a];return `α≥${a} 발끝 y ${b.min??'없음'}–${b.max??'없음'} (차 ${b.range??'없음'}px)`;}).join(' / ');
+        article.querySelectorAll('.direction')[row].append(note);
+      });
+    }
+  }catch(error){result={id,file:`walk-${id}.png`,error:error.message};article.querySelector('.result').textContent=result.error;article.querySelector('.result').classList.add('error');}
+  window.assetChecks.push(result);render();return result;
+})).then(results=>{document.querySelector('#status').textContent=`${results.filter(r=>!r.error).length}/7장 로드 · 검토 후보`;return results;});
+render();
+</script>
+</body></html>

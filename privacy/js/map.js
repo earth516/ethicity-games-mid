@@ -1,0 +1,779 @@
+/*
+ * 맵 화면 — 타일맵을 걸어 다니다 ❗ 대상에게 말을 걸면 사건 장면이 열린다.
+ * 그림: assets/sprites/char_<인물>.png(32×48 칸, 가로 4프레임 × 세로 아래·왼·오·위)가 있으면 쓰고,
+ *       없으면 임시 도형(원+머리글자+이름표)으로 그린다. 타일·가구도 지금은 임시 색 블록.
+ * 조작: 방향키/WASD 이동, Space/Enter 말 걸기·조사, 화면 탭 = 그 칸까지 걸어가기(인물·사물을 탭하면 가서 말 걸기)
+ */
+(function () {
+  'use strict';
+
+  var WD = window.PRIVACY_WORLD;
+  var STEP_MS = 150;
+  var SPRITE_DIR = 'assets/sprites/';
+  var questIcon = null;
+  var questImage = new Image();
+  questImage.onload = function () { questIcon = questImage; };
+  questImage.src = 'assets/icons/quest.png';
+  var ROW = { down: 0, left: 1, right: 2, up: 3 };
+  var KEY_DIR = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right', W: 'up', S: 'down', A: 'left', D: 'right' };
+  var TILE_COLOR = {
+    '#': '#9AA5A6', c: '#EADCBD', l: '#E3D8C6', h: '#DADFE0', d: '#C9A66B', g: '#A9D48C', p: '#E4CC98',
+    y: '#ECDDB4', f: '#A9D48C', T: '#A9D48C', w: '#7FC3E4', H: '#C98F6B', o: '#7A4E2E', r: '#E9D4A3', x: '#7A4E2E'
+  };
+  var CHAR_COLOR = window.PrivacySprite.COLOR; // 관계 보고 얼굴 대체색과 같은 색
+  var TINT = { day: null, evening: 'rgba(255,181,100,0.08)', night: 'rgba(41,63,118,0.18)' };
+
+  var o = null;                 // init 옵션
+  var canvas, ctx, wrap;
+  var active = false, raf = null, tmr = null, lastT = 0;
+  var camS = null, camT = 0, camTarget = { x: 0, y: 0 }, frameDt = 0; // 부드러운 카메라: 실제 위치(camS)가 목표(camTarget)를 살짝 늦게 따라감
+  var mode = null, stageInfo = null, focus = null, gen = 0; // gen: show()마다 +1(지난 인사말이 새 걷기를 넘기지 않게) // focus: 장면 중 주인공을 둘 화면 위치(비율). 폰·선택 상자에 가리지 않게 // mode: 'walk'(걷기·입력) | 'stage'(장면 무대: 그리기만)
+  var run = null, trig = null, targetId = null;
+  var cast = [], blocked = {};
+  var me = { x: 0, y: 0, dir: 'down', fx: 0, fy: 0, moving: false, t: 0, from: null, to: null, door: null, frame: 0 };
+  var held = [], path = null, actOnArrive = false, busy = false;
+  var bubbles = [], T = 40, viewW = 0, viewH = 0, cam = { x: 0, y: 0 }, dpr = 1;
+  var sprites = {}, lastArea = '', lastLook = null;
+  var srcTile = 48; // 스프라이트 원본 한 칸(px). 시트를 읽으면 자동으로 바뀐다
+  // 건물은 반복 벽 타일 대신 하나의 외관을 사용한다. 충돌/문 좌표는 world.js 소유.
+  var houseExterior = null;
+  var houseImage = new Image();
+  houseImage.onload = function () { houseExterior = window.PrivacyPalette.image(houseImage, false); };
+  houseImage.src = SPRITE_DIR + 'house-exterior.png';
+
+  /* ── 타일·가구 아틀라스(assets/sprites/tiles.png + tiles.json) ──
+   * tiles.json을 읽지 못하는 환경(file:// 등)에선 아래 내장 좌표를 쓴다(납품 v2 기준).
+   * 그림이 없으면 임시 색 블록으로 그린다. */
+  var ATLAS = { img: null, size: 48, t: {"floor_class":[0,0,48,48],"floor_hall":[48,0,48,48],"floor_library":[96,0,48,48],"floor_sand":[144,0,48,48],"floor_dirt":[192,0,48,48],"floor_grass":[240,0,48,48],"floor_room":[288,0,48,48],"wall_school":[336,0,48,48],"wall_room":[384,0,48,48],"door_school":[432,0,48,48],"gate":[480,0,48,96],"fence":[528,0,48,48],"tree":[576,0,48,96],"water":[624,0,48,48],"house_wall":[672,0,48,48],"house_door":[720,0,48,48],"sign":[0,96,48,48],"lamp":[48,96,48,96],"desk_student":[96,96,48,48],"desk_teacher":[144,96,96,48],"blackboard":[240,96,240,48],"noticeboard":[480,96,96,48],"locker":[576,96,48,96],"bookshelf":[624,96,48,48],"pc_public_off":[672,96,48,48],"pc_public_on":[720,96,48,48],"store_counter":[0,192,192,48],"tent_booth_a":[192,192,144,96],"tent_booth_b":[336,192,144,96],"bench":[480,192,96,48],"bed":[576,192,48,96],"desk_pc_off":[624,192,96,48],"desk_pc_on":[0,288,96,48],"bookcase_room":[96,288,48,48]} };
+  function loadAtlas() {
+    if (ATLAS.img !== null) return;
+    ATLAS.img = false;
+    var im = new Image();
+    im.onload = function () { ATLAS.img = window.PrivacyPalette.image(im, false); };
+    im.src = SPRITE_DIR + 'tiles.png';
+    if (window.fetch && location.protocol !== 'file:') {
+      fetch(SPRITE_DIR + 'tiles.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+        if (!j || !j.tiles) return;
+        var t = {};
+        Object.keys(j.tiles).forEach(function (k) { var v = j.tiles[k]; t[k] = [v.x, v.y, v.width, v.height]; });
+        ATLAS.t = t; ATLAS.size = j.tileSize || ATLAS.size;
+      }).catch(function () { /* 내장 좌표 사용 */ });
+    }
+  }
+  // 바닥 타일 문자 → 아틀라스 이름
+  var FLOOR = { c: 'floor_class', l: 'floor_library', h: 'floor_hall', g: 'floor_grass', p: 'floor_dirt', y: 'floor_sand', r: 'floor_room', w: 'water', H: 'house_wall', o: 'house_door', x: 'door_school', f: 'floor_grass', T: 'floor_grass', e: 'floor_grass' };
+  // 사물 id → 아틀라스 이름(함수면 상황에 따라)
+  var OBJ_ART = {
+    board: 'blackboard', notice: 'noticeboard', tdesk: 'desk_teacher', locker: 'locker', store: 'store_counter',
+    tent1: 'tent_booth_a', tent2: 'tent_booth_b', sign: 'sign', bench: 'bench', lamp: 'lamp', bed: 'bed', mybook: 'bookcase_room',
+    pc1: 'pc_public_off', pc2: 'pc_public_off',
+    pc3: function () { return trig && trig.target.obj === 'pc3' ? 'pc_public_on' : 'pc_public_off'; },
+    mypc: function () { return (trig && trig.target.obj === 'mypc') || (stageInfo && stageInfo.pcOn) ? 'desk_pc_on' : 'desk_pc_off'; }
+  };
+  function artFor(ob) {
+    if (ob.id.indexOf('desk') === 0 && ob.id !== 'desk') return 'desk_student';
+    if (ob.id === 'shelf') return 'bookshelf';
+    var a = OBJ_ART[ob.id];
+    return typeof a === 'function' ? a() : a;
+  }
+  // 아틀라스 한 조각을 '왼쪽 아래 기준점 = 타일 (tx, tyBottom)의 아래 모서리'에 그린다
+  function blit(name, tx, tyBottom, repeatW) {
+    var r = ATLAS.t[name];
+    if (!r || !ATLAS.img) return false;
+    var z = T / ATLAS.size, w = r[2] * z, h = r[3] * z;
+    var bx = Math.round(tx * T - cam.x), by = Math.round((tyBottom + 1) * T - cam.y);
+    for (var i = 0; i < (repeatW || 1); i++) ctx.drawImage(ATLAS.img, r[0], r[1], r[2], r[3], bx + i * w, by - h, w, h);
+    return true;
+  }
+  // 임시 도형의 머리 모양(색이 아니라 실루엣으로도 구분)
+  var HAIR = { hayun: 'long', seoa: 'pony', dohyun: 'short', minjun: 'short', teacher: 'short', friend: 'short' };
+
+  function $(id) { return document.getElementById(id); }
+
+  /* ── 스프라이트(있으면) ─────────── */
+  function loadSprite(key, file) {
+    if (sprites[key] !== undefined) return;
+    sprites[key] = null;
+    var im = new Image();
+    im.onload = function () {
+      sprites[key] = window.PrivacyPalette.image(im, true);
+      // 시트 크기에서 원본 칸 크기를 알아낸다(가로 4프레임): 32×48이든 48×72든 그대로 맞춤
+      if (key !== 'minjun_sleep' && im.naturalWidth % 4 === 0) {
+        var w = im.naturalWidth / 4;
+        if (w !== srcTile) { srcTile = w; resize(); }
+      }
+    };
+    im.onerror = function () { sprites[key] = false; };
+    im.src = SPRITE_DIR + file;
+  }
+
+  /* ── 대상 ─────────────────────── */
+  function targetBox() {
+    if (trig.target.npc) {
+      var c = cast.filter(function (k) { return k.who === trig.target.npc; })[0];
+      return { x: c.x, y: c.y, w: 1, h: 1, who: c.who, name: o.story.characters[c.who].name };
+    }
+    var ob = WD.object(trig.target.obj);
+    return { x: ob.x, y: ob.y, w: ob.w, h: ob.h, obj: ob, name: ob.name };
+  }
+  function boxContains(b) { return function (x, y) { return x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h; }; }
+  function routeToTarget() { return WD.findPath({ x: me.x, y: me.y }, WD.adjacentTo({ contains: boxContains(targetBox()) }), blocked); }
+
+  /* ── 열기·닫기 ─────────────────── */
+  function show(r) {
+    run = r;
+    targetId = r.mapTarget;
+    trig = WD.triggers[targetId];
+    cast = trig.cast.slice();
+    blocked = {};
+    cast.forEach(function (c) { blocked[c.x + ',' + c.y] = true; loadSprite(c.who, 'char_' + c.who + '.png'); });
+    var look = o.playerLook();
+    if (look !== lastLook) { delete sprites.me; lastLook = look; }
+    loadSprite('me', 'char_player_' + look + '.png');
+    loadSprite('minjun_sleep', 'minjun_sleep.png');
+    loadAtlas();
+
+    var pos = o.loadPos();
+    var newDay = false;
+    if (pos && pos.for === targetId) place(pos);
+    else if (trig.spawn) { place(WD.SPAWNS[trig.spawn]); newDay = true; }
+    else if (pos) place(pos);
+    else place(WD.SPAWNS.classroom);
+    nudgeFree();
+    savePos();
+
+    $('m-time').textContent = trig.time;
+    $('m-mission').textContent = trig.mission;
+    held = []; path = null; actOnArrive = false; busy = false; bubbles = [];
+    mode = 'walk'; stageInfo = null; focus = null; gen++; camS = null;
+    lastArea = '';
+    updateArea();
+    say(trig.hint || '');
+    active = true;
+    resize();
+    if (newDay) dayCard(trig.time);
+    updateHint();
+    lastT = performance.now();
+    schedule();
+  }
+  // 장면 무대: 입력 없이 장소·인물·시간대만 그린다. card가 있으면 잠깐 컷 카드를 띄우고 끝나면 resolve
+  function stage(st, opts) {
+    opts = opts || {};
+    mode = 'stage'; stageInfo = st; trig = null; targetId = null; focus = opts.focus || null; gen++; camS = null;
+    cast = st.cast.slice(); blocked = {};
+    cast.forEach(function (c) { loadSprite(c.who, 'char_' + c.who + '.png'); });
+    var look = o.playerLook();
+    if (look !== lastLook) { delete sprites.me; lastLook = look; }
+    loadSprite('me', 'char_player_' + look + '.png');
+    loadSprite('minjun_sleep', 'minjun_sleep.png');
+    loadAtlas();
+    place(st.me || WD.PLACES[st.place].me);
+    held = []; path = null; actOnArrive = false; busy = false; bubbles = [];
+    say('');
+    lastArea = ''; updateArea();
+    active = true; resize(); lastT = performance.now(); schedule();
+    var c = $('cut');
+    if (!opts.card) { c.hidden = true; return Promise.resolve(); }
+    c.textContent = opts.card; c.hidden = false;
+    var ms = o.instant() || o.reduceMotion() ? 0 : 1200;
+    return new Promise(function (res) { setTimeout(function () { c.hidden = true; res(); }, ms); });
+  }
+  function clearBubbles() { bubbles = []; }
+  function hide() { active = false; mode = null; held = []; path = null; if (raf) cancelAnimationFrame(raf); clearTimeout(tmr); raf = null; }
+  // 화면 갱신은 rAF, 탭이 가려지거나 rAF가 멈춘 환경에선 타이머가 대신 진행시킨다
+  function schedule() {
+    if (!active) return;
+    if (raf) cancelAnimationFrame(raf);
+    clearTimeout(tmr);
+    raf = requestAnimationFrame(loop);
+    tmr = setTimeout(function () { loop(performance.now()); }, 50);
+  }
+  function place(p) { me.x = p.x; me.y = p.y; me.dir = p.dir || 'down'; me.fx = p.x; me.fy = p.y; me.moving = false; }
+  function nudgeFree() {
+    if (WD.walkable(me.x, me.y, blocked)) return;
+    if (!WD.walkable(me.x, me.y)) { var nw = WD.nearestWalkable(me.x, me.y, blocked); if (nw) { place({ x: nw.x, y: nw.y, dir: me.dir }); return; } }
+    var p = WD.findPath({ x: me.x, y: me.y }, function (x, y) { return WD.walkable(x, y, blocked); }, {});
+    if (!p) return;
+    var cur = { x: me.x, y: me.y };
+    p.forEach(function (d) { cur = WD.stepFrom(cur.x, cur.y, d, {}); });
+    place({ x: cur.x, y: cur.y, dir: me.dir });
+  }
+  function savePos() { o.savePos({ x: me.x, y: me.y, dir: me.dir, for: targetId }); }
+
+  function dayCard(text) {
+    var c = $('cut');
+    c.textContent = text;
+    c.hidden = false;
+    setTimeout(function () { c.hidden = true; }, o.instant() ? 0 : 1400);
+  }
+
+  /* ── 이동 ─────────────────────── */
+  function tryStep(dir) {
+    me.dir = dir;
+    var d = WD.DIRS[dir], nx = me.x + d[0], ny = me.y + d[1];
+    if (!WD.walkable(nx, ny, blocked)) return false;
+    if (trig.hint && $('m-say').textContent === trig.hint) say(''); // 첫 걸음을 떼면 안내는 사라진다
+    me.moving = true; me.t = 0;
+    me.from = { x: me.x, y: me.y }; me.to = { x: nx, y: ny };
+    me.door = WD.DOORS[nx + ',' + ny] || null;
+    return true;
+  }
+  function finishStep() {
+    me.moving = false;
+    me.x = me.to.x; me.y = me.to.y;
+    if (me.door) { me.x = me.door.to[0]; me.y = me.door.to[1]; me.dir = me.door.dir; say(me.door.label === '집 안으로' ? '우리 집에 들어왔다.' : '밖으로 나왔다.'); }
+    me.fx = me.x; me.fy = me.y;
+    me.frame = (me.frame + 1) % 4;
+    me.walked = (me.walked || 0) + 1; // 걸은 칸 수: 걷기 동작을 칸이 바뀌어도 이어 가게
+    savePos();
+    updateArea();
+    updateHint();
+    if (path && path.length) { tryStep(path.shift()) || (path = null); return; }
+    if (path && !path.length) {
+      path = null;
+      if (actOnArrive) { actOnArrive = false; act(); }
+      return;
+    }
+    if (held.length) tryStep(held[held.length - 1]);
+  }
+  function updateArea() {
+    var a = WD.areaName(me.x, me.y);
+    if (a !== lastArea) { lastArea = a; $('m-area').textContent = a ? '📍 ' + a : ''; }
+  }
+
+  /* ── 상호작용 ───────────────────── */
+  function neighbors() {
+    var list = [], order = [me.dir, 'up', 'down', 'left', 'right'];
+    order.forEach(function (dir) {
+      var d = WD.DIRS[dir], x = me.x + d[0], y = me.y + d[1];
+      cast.forEach(function (c) { if (c.x === x && c.y === y) list.push({ type: 'npc', c: c, dir: dir }); });
+      WD.OBJECTS.forEach(function (ob) {
+        if (x >= ob.x && x < ob.x + ob.w && y >= ob.y && y < ob.y + ob.h) list.push({ type: 'obj', ob: ob, dir: dir });
+      });
+    });
+    return list;
+  }
+  function isTarget(n) { return trig.target.npc ? n.type === 'npc' && n.c.who === trig.target.npc : n.type === 'obj' && n.ob.id === trig.target.obj; }
+  function nearTarget() { return neighbors().some(isTarget); }
+
+  function act() {
+    if (mode !== 'walk') return;
+    if (window.PrivacyTalk.isOpen()) { window.PrivacyTalk.next(); return; }
+    if (busy || me.moving) return;
+    var ns = neighbors();
+    if (!ns.length) { say('가까이 가서 눌러 보세요. {!}가 다음 목적지예요.'); return; }
+    var t = ns.filter(isTarget)[0];
+    if (t) {
+      me.dir = t.dir;
+      busy = true;
+      say('');
+      var who0 = t.type === 'npc' ? t.c.who : null;
+      var greet = [].concat(trig.greet || []).map(function (g) { return typeof g === 'string' ? personLine(who0, g) : personLine(g.who || null, g.text); });
+      var g0 = gen;
+      talk(greet).then(function () { busy = false; if (active && mode === 'walk' && gen === g0) o.onEnter(); });
+      return;
+    }
+    var n = ns[0];
+    me.dir = n.dir;
+    say('');
+    if (n.type === 'npc') {
+      var lines = WD.idle[n.c.who] || [{ text: '…' }];
+      var hit = lines.filter(function (l) { return o.evalCond(l.if); })[0];
+      var own = trig.castLines && trig.castLines[n.c.who]; // 이 걷기 구간에서만 하는 말(오프닝 자기소개 등)
+      talk([personLine(n.c.who, own || hit.text)]);
+    } else {
+      talk([{ who: null, name: null, text: n.ob.look || n.ob.name }]);
+    }
+  }
+  // 'hayun: 대사' 형식이면 말한 사람을 그 이름으로, 아니면 기본 화자로
+  function personLine(who, text) {
+    var m = /^(\w+): ([\s\S]*)$/.exec(text);
+    if (m && o.story.characters[m[1]]) { who = m[1]; text = m[2]; }
+    return { who: who, name: who ? o.story.characters[who].name : null, text: o.fill(text) };
+  }
+  // 대화창에 줄이 뜰 때 말하는 사람이 맵에 있으면 머리 위에도 짧게
+  // 글자 속 {!}를 노란 느낌표 그림(quest.png)으로
+  function rich(node, text) {
+    node.textContent = '';
+    String(text).split('{!}').forEach(function (part, i) {
+      if (i) { var ic = document.createElement('span'); ic.className = 'ico-quest'; ic.setAttribute('role', 'img'); ic.setAttribute('aria-label', '노란 느낌표'); node.appendChild(ic); }
+      if (part) node.appendChild(document.createTextNode(part));
+    });
+  }
+  // 대화 초상화(Codex v3를 세로 512px로 줄인 사본). 기본 표정뿐이라 맵에서 말 걸기·오프닝에만 쓴다
+  var PORTRAIT = { hayun: 1, seoa: 1, dohyun: 1, minjun: 1, teacher: 1, me: 1 };
+  function portraitFor(who) {
+    if (!PORTRAIT[who]) return null;
+    return 'assets/portraits/' + (who === 'me' ? 'player_' + o.playerLook() : who) + '.png';
+  }
+  function talk(lines) {
+    return window.PrivacyTalk.open(lines, { instant: o.instant(), portrait: portraitFor, onLine: function (l) {
+      var c = cast.filter(function (k) { return k.who === l.who; })[0];
+      if (c) setBubble(c, l.text);
+    } });
+  }
+  // 짧은 안내(문 드나들기·길 안내)는 대화창 대신 무대 위 한 줄로
+  function say(text, speaker) {
+    if (text && speaker) setBubble(speaker, text);
+    rich($('m-say'), text || '');
+  }
+  function updateHint() {
+    var near = nearTarget();
+    var btn = $('btn-map-act');
+    rich(btn, near ? '{!} ' + targetBox().name + (trig.target.npc ? '에게 말 걸기' : ' 조사하기') : '말 걸기 · 조사하기');
+    btn.classList.toggle('primary', near);
+  }
+
+  function skipToTarget() {
+    if (mode !== 'walk') return;
+    if (busy) return;
+    var p = routeToTarget();
+    if (!p) { say('지금은 그곳으로 갈 수 없어요.'); return; }
+    var cur = { x: me.x, y: me.y };
+    p.forEach(function (d) { var n = WD.stepFrom(cur.x, cur.y, d, blocked); cur = { x: n.x, y: n.y }; });
+    path = null; held = [];
+    place({ x: cur.x, y: cur.y, dir: me.dir });
+    var b = targetBox();
+    // 대상을 바라보게
+    ['up', 'down', 'left', 'right'].forEach(function (dir) {
+      var d = WD.DIRS[dir];
+      if (boxContains(b)(me.x + d[0], me.y + d[1])) me.dir = dir;
+    });
+    savePos(); updateArea(); updateHint();
+    say(b.name + ' 앞에 왔어요. 말 걸기를 눌러 보세요.');
+    $('btn-map-act').focus();
+  }
+
+  /* ── 입력 ─────────────────────── */
+  function overlayOpen() { return !$('menu').hidden || !$('confirm').hidden; }
+  function onKeyDown(e) {
+    if (mode !== 'walk' || overlayOpen() || e.altKey || e.ctrlKey || e.metaKey) return;
+    var tag = (e.target && e.target.tagName) || '';
+    var dir = KEY_DIR[e.key];
+    if (dir) {
+      e.preventDefault();
+      if (window.PrivacyTalk.isOpen()) { if (busy) return; window.PrivacyTalk.close(); } // 걸으면 대화창은 닫힌다(목적지 인사말은 끝까지)
+      path = null; actOnArrive = false;
+      if (held.indexOf(dir) < 0) held.push(dir);
+      if (!me.moving && !busy) tryStep(dir);
+      return;
+    }
+    if ((e.key === ' ' || e.key === 'Enter') && tag !== 'BUTTON' && tag !== 'INPUT') { e.preventDefault(); act(); }
+  }
+  function onKeyUp(e) {
+    var dir = KEY_DIR[e.key];
+    if (dir) { var i = held.indexOf(dir); if (i >= 0) held.splice(i, 1); }
+  }
+  function onPointer(e) {
+    if (mode !== 'walk' || busy) return;
+    if (window.PrivacyTalk.isOpen()) { window.PrivacyTalk.close(); return; }
+    var r = canvas.getBoundingClientRect();
+    var tx = Math.floor((e.clientX - r.left + cam.x) / T), ty = Math.floor((e.clientY - r.top + cam.y) / T);
+    var school = window.PrivacySchool;
+    if (school && !school.contains(me.x, me.y) && school.contains(tx, ty)) { tx = 10; ty = 10; }
+    var npc = cast.filter(function (c) { return c.x === tx && c.y === ty; })[0];
+    var ob = WD.objectAt(tx, ty) || WD.OBJECTS.filter(function (b) { return tx >= b.x && tx < b.x + b.w && ty >= b.y && ty < b.y + b.h; })[0];
+    var p;
+    if (npc || ob) {
+      var box = npc ? { x: npc.x, y: npc.y, w: 1, h: 1 } : ob;
+      p = WD.findPath({ x: me.x, y: me.y }, WD.adjacentTo({ contains: boxContains(box) }), blocked);
+      actOnArrive = true;
+    } else {
+      p = WD.findPath({ x: me.x, y: me.y }, function (x, y) { return x === tx && y === ty; }, blocked);
+      actOnArrive = false;
+    }
+    if (!p) { actOnArrive = false; return; }
+    held = [];
+    if (!p.length) { if (actOnArrive) { actOnArrive = false; faceBox(npc ? { x: npc.x, y: npc.y, w: 1, h: 1 } : ob); act(); } return; }
+    path = p;
+    if (!me.moving) tryStep(path.shift());
+  }
+  function faceBox(b) {
+    ['up', 'down', 'left', 'right'].forEach(function (dir) { var d = WD.DIRS[dir]; if (boxContains(b)(me.x + d[0], me.y + d[1])) me.dir = dir; });
+  }
+
+  /* ── 그리기 ─────────────────────── */
+  function resize() {
+    if (!active) return;
+    var cssW = wrap.clientWidth;
+    var cssH = Math.max(240, wrap.clientHeight);
+    // 도트가 뭉개지지 않게 원본 칸 크기의 정수배(1배·2배…)로만 그린다. 가로 약 13칸이 보이도록 배율을 고름
+    var k = Math.max(1, Math.round(cssW / (srcTile * 13)));
+    T = srcTile * k;
+    dpr = window.devicePixelRatio || 1;
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    viewW = cssW; viewH = cssH;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+  }
+  function loop(t) {
+    if (raf) cancelAnimationFrame(raf);
+    clearTimeout(tmr);
+    raf = null;
+    if (!active) return;
+    // 경과 시간을 걸음 단위로 소비(타이머가 느리게 와도 이동 속도는 일정)
+    var dt = Math.max(0, Math.min(1000, t - lastT)); lastT = t;
+    frameDt = Math.min(100, dt);
+    while (me.moving && dt > 0) {
+      var need = (1 - me.t) * STEP_MS;
+      if (dt >= need) { dt -= need; me.t = 1; finishStep(); }
+      else { me.t += dt / STEP_MS; dt = 0; }
+    }
+    if (me.moving) { me.fx = me.from.x + (me.to.x - me.from.x) * me.t; me.fy = me.from.y + (me.to.y - me.from.y) * me.t; }
+    draw(t);
+    schedule();
+  }
+  // 걷기 동작: 반 칸마다 한 프레임(한 칸에 2프레임), 칸이 바뀌어도 이어진다
+  function walkFrame() { return me.moving ? Math.floor(((me.walked || 0) + me.t) * 2) % 4 : 0; }
+  function draw(t) {
+    // Frame the complete bedroom during walking; keep scene-overlay focus unchanged.
+    T = srcTile * Math.max(1, Math.round(viewW / (srcTile * 13)));
+    if (mode === 'walk' && WD.indoor(me.x, me.y)) {
+      T = Math.max(28, Math.min(96, Math.floor(Math.min(viewW / (WD.INDOOR.w + 0.8), (viewH - 160) / (WD.INDOOR.h + 0.8)))));
+    }
+    var mapW = WD.W * T, mapH = WD.H * T;
+    var f = typeof focus === 'function' ? focus() : focus; // 장면 중엔 화면 크기에 따라 매번 다시
+    var fx = f ? f.x : 0.5, fy = f ? f.y : 0.5;
+    // 걷기: 맵 끝에서 멈춤 / 장면: 주인공을 focus 자리에 두려고 맵 밖(폰·선택 상자 뒤)까지 조금 넘어갈 수 있음
+    var slack = focus ? 0.5 : 0;
+    cam.x = Math.max(-viewW * slack, Math.min(mapW - viewW * (1 - slack), me.fx * T + T / 2 - viewW * fx));
+    cam.y = Math.max(-viewH * slack, Math.min(mapH - viewH * (1 - slack), me.fy * T + T / 2 - viewH * fy));
+    if (mapW < viewW) cam.x = (mapW - viewW) / 2;
+    // 걷는 동안 카메라는 0.1초 남짓 늦게 미끄러지듯 따라간다(움직임 줄이기·장면·순간이동이면 바로)
+    camTarget.x = cam.x; camTarget.y = cam.y;
+    if (mode === 'walk' && !o.reduceMotion() && camS && camT === T && Math.abs(camS.x - cam.x) < viewW && Math.abs(camS.y - cam.y) < viewH) {
+      var kk = 1 - Math.exp(-frameDt / 110);
+      camS.x += (cam.x - camS.x) * kk; camS.y += (cam.y - camS.y) * kk;
+      if (Math.abs(camS.x - cam.x) < 0.5) camS.x = cam.x;
+      if (Math.abs(camS.y - cam.y) < 0.5) camS.y = cam.y;
+    } else camS = { x: cam.x, y: cam.y };
+    camT = T;
+    cam.x = Math.round(camS.x); cam.y = Math.round(camS.y); // 정수 픽셀: 그림이 반 픽셀씩 떨리지 않게
+    ctx.fillStyle = '#5E8F55';
+    ctx.fillRect(0, 0, viewW, viewH);
+    var x0 = Math.max(0, Math.floor(cam.x / T)), y0 = Math.max(0, Math.floor(cam.y / T));
+    var x1 = Math.min(WD.W - 1, Math.ceil((cam.x + viewW) / T)), y1 = Math.min(WD.H - 1, Math.ceil((cam.y + viewH) / T));
+    var x, y, inside = WD.indoor(me.x, me.y);
+    var room = window.PrivacyRoom;
+    if (inside && mode === 'walk') {
+      var rb = WD.INDOOR;
+      cam.x = rb.w * T <= viewW ? (rb.x + rb.w / 2) * T - viewW / 2 : Math.max(rb.x * T, Math.min((rb.x + rb.w) * T - viewW, me.fx * T + T / 2 - viewW / 2));
+      cam.y = rb.h * T <= viewH ? (rb.y + rb.h / 2) * T - viewH / 2 : Math.max(rb.y * T, Math.min((rb.y + rb.h) * T - viewH, me.fy * T + T / 2 - viewH / 2));
+      x0 = Math.max(0, Math.floor(cam.x / T)); y0 = Math.max(0, Math.floor(cam.y / T));
+      x1 = Math.min(WD.W - 1, Math.ceil((cam.x + viewW) / T)); y1 = Math.min(WD.H - 1, Math.ceil((cam.y + viewH) / T));
+      ctx.fillStyle = '#dfe7e3'; ctx.fillRect(0, 0, viewW, viewH);
+    }
+    var school = window.PrivacySchool;
+    var schoolCovered = school && !school.contains(me.x, me.y);
+    var art = !!ATLAS.img;
+    var list = []; // 앞뒤 순서가 필요한 것들: { y: 아래쪽 행, fn }
+    var tileAt = function (xx, yy) { return !inside && WD.indoor(xx, yy) ? 'T' : WD.grid[yy][xx]; };
+    // Wider crowns can extend into the viewport from neighboring cells.
+    var outdoor = window.PrivacyOutdoor;
+    var hood = !inside && window.PrivacyNeighborhood; // 주택가·낮은 담장·교문·생울타리(그리기만)
+    for (y = y0; y <= Math.min(WD.H - 1, y1 + 2); y++) for (x = Math.max(0, x0 - 1); x <= Math.min(WD.W - 1, x1 + 1); x++) {
+      var sx = x * T - cam.x, sy = y * T - cam.y;
+      if (inside && !WD.indoor(x, y)) { ctx.fillStyle = '#dfe7e3'; ctx.fillRect(sx, sy, T + 1, T + 1); continue; }
+      if (schoolCovered && school.contains(x, y)) {
+        // 외관 그림 아래 바닥: 단색 대신 주변과 같은 풀 질감(현관 칸은 흙길로 이어짐)
+        if (!(window.PrivacyTerrain && window.PrivacyTerrain.drawCell(ctx, 'g', x, y, T, cam))) { ctx.fillStyle = '#86a85f'; ctx.fillRect(Math.round(sx), Math.round(sy), T + 1, T + 1); }
+        continue;
+      }
+      var ch = tileAt(x, y);
+      if (inside && room && room.cell(ctx, ch, x, y, T, cam)) continue;
+      if (school && !schoolCovered && school.cell(ctx, ch, x, y, T, cam)) continue;
+      var pondGround = !inside && ch === 'w' && outdoor && outdoor.ready('pond');
+      if (pondGround) {
+        if (!(window.PrivacyTerrain && window.PrivacyTerrain.drawCell(ctx, 'g', x, y, T, cam))) blit('floor_grass', x, y);
+        continue;
+      }
+      var terrain = !inside && (houseExterior || (ch !== 'H' && ch !== 'o')) && window.PrivacyTerrain && window.PrivacyTerrain.drawCell(ctx, ch, x, y, T, cam);
+      if (!inside && houseExterior && (ch === 'H' || ch === 'o')) {
+        if (!terrain && !blit('floor_grass', x, y)) drawTile('g', sx, sy);
+        continue;
+      }
+      if (!art) { if (!terrain || ch === 'T' || ch === 'f') drawTile(ch, sx, sy); continue; }
+      var base = ch === '#' ? (WD.indoor(x, y) ? 'wall_room' : 'wall_school') : ch === 'd' ? (x === 22 ? 'floor_dirt' : 'door_school') : FLOOR[ch];
+      if (!terrain) blit(base || 'floor_grass', x, y);
+      if (ch === 'T') list.push({ y: y, fn: (function (xx, yy) { return function () {
+        var variation = ((xx * 7 + yy * 11) % 3) * 0.08;
+        if (!(outdoor && outdoor.draw(ctx, 'tree', xx - 0.32 - variation / 2, yy + 1, 1.64 + variation, 2.25 + variation, T, cam))) blit('tree', xx, yy);
+      }; })(x, y) });
+      // 옛 높은 철창·교문 타일은 새 담장 그림이 없을 때만(있으면 neighborhood.js가 낮은 담장·열린 교문을 그림)
+      if (ch === 'f' && !hood) list.push({ y: y, fn: (function (xx, yy) { return function () { blit('fence', xx, yy); }; })(x, y) });
+      if (ch === 'd' && x === 22 && y === 17 && !hood) list.push({ y: y, fn: function () { blit('gate', 22, 17); } });
+    }
+    if (!inside && outdoor) outdoor.draw(ctx, 'pond', 26.9, 21.1, 4.2, 2.2, T, cam);
+    if (hood) hood.collect(list, ctx, T, cam, { x0: x0, y0: y0, x1: x1, y1: y1 });
+    if (inside && room) room.details(ctx, T, cam);
+    if (!inside && school) {
+      if (schoolCovered) list.push({ y: 10, fn: function () { school.exterior(ctx, T, cam); } });
+      else school.details(ctx, T, cam);
+    }
+    if (!inside && houseExterior) {
+      list.push({ y: 16, fn: function () {
+        ctx.drawImage(houseExterior, Math.round(41 * T - cam.x), Math.round(13 * T - cam.y), 5 * T, 5 * T);
+      } });
+    }
+    WD.OBJECTS.forEach(function (ob) {
+      if (WD.indoor(ob.x, ob.y) !== inside) return;
+      if (schoolCovered && school.contains(ob.x, ob.y)) return;
+      var up = hood && ob.art ? hood.rise(ob) : 0; // 큰 집 그림은 위로 솟으니 컬링 여유를 그만큼
+      if (!(ob.x - 1 <= x1 + 1 && ob.x + ob.w + 1 >= x0 - 1 && ob.y - up <= y1 + 2 && ob.y + ob.h >= y0 - 1)) return;
+      var name = art && artFor(ob);
+      var bottom = ob.y + ob.h - 1;
+      if (inside && room && ['bed', 'mypc', 'mybook', 'plush'].indexOf(ob.id) >= 0) {
+        list.push({ y: bottom, fn: function () {
+          if (!room.object(ctx, ob, T, cam)) { if (!name || !blit(name, ob.x, bottom)) drawObject(ob); }
+        } });
+        return;
+      }
+      if (!inside && outdoor && (ob.id === 'bench' || ob.id === 'lamp') && outdoor.ready(ob.id)) {
+        list.push({ y: bottom, fn: function () {
+          if (ob.id === 'bench') outdoor.draw(ctx, 'bench', ob.x, bottom + 1, 2, 1.15, T, cam);
+          else outdoor.draw(ctx, 'lamp', ob.x + 0.17, bottom + 1, 0.66, 2.3, T, cam);
+        } });
+        return;
+      }
+      if (hood && ob.art) { list.push({ y: bottom, fn: function () { if (!hood.drawObject(ctx, ob, T, cam)) drawObject(ob); } }); return; }
+      if (!name) { list.push({ y: ob.wall ? -1 : bottom, fn: function () { drawObject(ob); } }); return; }
+      list.push({ y: ob.wall ? -1 : bottom, fn: function () {
+        if (school && school.object(ctx, ob, T, cam, (trig && trig.target.obj === 'pc3') || (stageInfo && stageInfo.pcOn))) return;
+        // 책장처럼 1칸짜리 그림을 여러 칸에 이어 붙이는 경우
+        var r = ATLAS.t[name], cells = r ? Math.round(r[2] / ATLAS.size) : ob.w;
+        blit(name, ob.x, bottom, Math.max(1, Math.round(ob.w / cells)));
+        if (ob.id === 'pc1' || ob.id === 'pc2') pcLabel(ob);
+      } });
+    });
+    cast.forEach(function (c) {
+      if (schoolCovered && school.contains(c.x, c.y)) return;
+      list.push({ y: c.pose === 'sleep' ? c.y - 0.5 : c.y, fn: function () { drawPerson(c.who, o.story.characters[c.who].name, c.x, c.y, c.dir, 0, c.pose); } });
+    });
+    list.push({ y: me.fy + 0.01, fn: function () { drawPerson('me', o.playerName(), me.fx, me.fy, me.dir, walkFrame()); } });
+    list.sort(function (a, b) { return a.y - b.y; });
+    list.forEach(function (d) { d.fn(); });
+    var tint = mode === 'stage' ? stageInfo.tint : trig.tint;
+    if (TINT[tint] && !(WD.areaName(me.x, me.y) === '내 방' && tint === 'day')) { ctx.fillStyle = TINT[tint]; ctx.fillRect(0, 0, viewW, viewH); }
+    if (mode === 'walk') drawMarker(t);
+    drawBubble(t);
+  }
+  function drawTile(ch, sx, sy) {
+    ctx.fillStyle = TILE_COLOR[ch] || '#A9D48C';
+    ctx.fillRect(sx, sy, T + 1, T + 1);
+    if (ch === '#' || ch === 'H') { ctx.fillStyle = ch === '#' ? '#7E898A' : '#A9714F'; ctx.fillRect(sx, sy, T + 1, Math.round(T * 0.3)); }
+    else if (ch === 'T') { ctx.fillStyle = '#4C8F45'; ctx.beginPath(); ctx.arc(sx + T / 2, sy + T * 0.45, T * 0.42, 0, 7); ctx.fill(); ctx.fillStyle = '#7A5634'; ctx.fillRect(sx + T * 0.42, sy + T * 0.75, T * 0.16, T * 0.25); }
+    else if (ch === 'f') { ctx.fillStyle = '#8C6A43'; ctx.fillRect(sx, sy + T * 0.35, T + 1, T * 0.12); ctx.fillRect(sx, sy + T * 0.65, T + 1, T * 0.12); ctx.fillRect(sx + T * 0.1, sy + T * 0.2, T * 0.12, T * 0.7); ctx.fillRect(sx + T * 0.7, sy + T * 0.2, T * 0.12, T * 0.7); }
+    else if (ch === 'd' || ch === 'o' || ch === 'x') { ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(sx + 2, sy + 2, T - 4, T - 4); }
+    else if (ch === 'c' || ch === 'l' || ch === 'r' || ch === 'h') { ctx.strokeStyle = 'rgba(0,0,0,0.05)'; ctx.strokeRect(sx + 0.5, sy + 0.5, T, T); }
+  }
+  function pcLabel(ob) {
+    var sx = ob.x * T - cam.x, sy = ob.y * T - cam.y;
+    ctx.fillStyle = '#FFFFFF';
+    roundRect(sx + T * 0.36, sy + T * 0.6, T * 0.28, T * 0.3, 3); ctx.fill();
+    ctx.fillStyle = '#16201F'; ctx.font = 'bold ' + Math.round(T * 0.24) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(ob.label || ob.name.replace(/\D/g, ''), sx + T / 2, sy + T * 0.76);
+  }
+  function drawObject(ob) {
+    var sx = ob.x * T - cam.x, sy = ob.y * T - cam.y, w = ob.w * T, h = ob.h * T;
+    var r = Math.round(T * 0.15);
+    ctx.fillStyle = ob.wall ? '#3F5A4C' : (ob.id.indexOf('tent') === 0 ? '#F2F2EE' : '#B9895A');
+    if (ob.id.indexOf('pc') === 0 || ob.id === 'mypc') ctx.fillStyle = '#C9CED1';
+    if (ob.id === 'bed') ctx.fillStyle = '#9CC3E6';
+    roundRect(sx + 3, sy + 3, w - 6, h - 6, r); ctx.fill();
+    if (ob.id.indexOf('tent') === 0) { ctx.fillStyle = ob.id === 'tent1' ? '#0F766E' : '#C2410C'; for (var i = 0; i < ob.w * 2; i++) if (i % 2 === 0) ctx.fillRect(sx + 3 + i * (w - 6) / (ob.w * 2), sy + 3, (w - 6) / (ob.w * 2), h * 0.35); }
+    ctx.font = Math.round(T * 0.5) + 'px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#16201F';
+    ctx.fillText(ob.icon || '', sx + w / 2, sy + h / 2 + 1);
+    if (ob.label) { ctx.font = 'bold ' + Math.round(T * 0.3) + 'px sans-serif'; ctx.fillStyle = '#16201F'; ctx.fillText(ob.label, sx + w - T * 0.2, sy + T * 0.25); }
+  }
+  function drawPerson(who, name, fx, fy, dir, frame, pose) {
+    var sx = fx * T - cam.x, sy = fy * T - cam.y;
+    if (sx < -T * 2 || sy < -T * 2 || sx > viewW + T || sy > viewH + T) return;
+    var sheet = pose === 'sleep' ? sprites.minjun_sleep : sprites[who];
+    if (sheet) {
+      // 칸 = 가로 1타일 × 세로 1.5타일, 발밑이 타일 아래쪽에 오도록
+      var fw = sheet.naturalWidth / (pose === 'sleep' ? 1 : 4), fh = sheet.naturalHeight / (pose === 'sleep' ? 1 : 4);
+      if (pose === 'sleep') ctx.drawImage(sheet, 0, 0, fw, fh, sx, sy - T * 1.5, T, T * 1.5); // 바로 위 책상 칸에 겹쳐 그림(납품 규칙: 책상 y - 0.5칸)
+      else ctx.drawImage(sheet, frame * fw, ROW[dir] * fh, fw, fh, sx, sy + T - T * 1.5, T, T * 1.5);
+    } else {
+      var col = CHAR_COLOR[who] || '#777';
+      var bob = frame % 2 ? -T * 0.04 : 0;
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.beginPath(); ctx.ellipse(sx + T / 2, sy + T * 0.9, T * 0.3, T * 0.09, 0, 0, 7); ctx.fill();
+      if (pose === 'sleep') {
+        ctx.fillStyle = col; roundRect(sx + T * 0.15, sy - T * 0.15, T * 0.7, T * 0.5, T * 0.15); ctx.fill();
+        ctx.fillStyle = '#F2D2B6'; ctx.beginPath(); ctx.arc(sx + T / 2, sy - T * 0.25, T * 0.22, 0, 7); ctx.fill();
+        ctx.fillStyle = '#16201F'; ctx.font = Math.round(T * 0.32) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('z', sx + T * 0.85, sy - T * 0.55);
+      } else {
+        ctx.fillStyle = col; roundRect(sx + T * 0.2, sy + T * 0.3 + bob, T * 0.6, T * 0.6, T * 0.18); ctx.fill();
+        var hair = who === 'me' ? (o.playerLook() === 'f' ? 'pony' : 'short') : HAIR[who];
+        var hx = sx + T / 2, hy = sy + T * 0.18 + bob, hr = T * 0.27;
+        ctx.fillStyle = '#4A3426';
+        if (hair === 'long') { roundRect(hx - hr * 1.05, hy - hr * 0.6, hr * 2.1, hr * 1.9, hr * 0.8); ctx.fill(); }
+        if (hair === 'pony') { var px = dir === 'left' ? hr : dir === 'right' ? -hr : hr * 0.95; ctx.beginPath(); ctx.ellipse(hx + px, hy + hr * 0.15, hr * 0.35, hr * 0.66, 0, 0, 7); ctx.fill(); }
+        ctx.fillStyle = '#F2D2B6'; ctx.beginPath(); ctx.arc(hx, hy, hr, 0, 7); ctx.fill();
+        ctx.fillStyle = '#4A3426';
+        ctx.beginPath(); ctx.arc(hx, hy, hr * 1.02, Math.PI * 1.02, Math.PI * 1.98); ctx.fill(); // 앞머리
+        if (dir === 'up') { ctx.beginPath(); ctx.arc(hx, hy, hr, 0, 7); ctx.fill(); }
+        // 바라보는 방향(눈)
+        ctx.fillStyle = '#16201F';
+        var ex = dir === 'left' ? -0.1 : dir === 'right' ? 0.1 : 0;
+        if (dir !== 'up') { ctx.fillRect(sx + T * (0.4 + ex), sy + T * 0.16 + bob, T * 0.06, T * 0.08); ctx.fillRect(sx + T * (0.54 + ex), sy + T * 0.16 + bob, T * 0.06, T * 0.08); }
+        ctx.fillStyle = '#FFFFFF'; ctx.font = 'bold ' + Math.round(T * 0.3) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(who === 'me' ? '나' : (o.story.characters[who] || {}).initial || '?', sx + T / 2, sy + T * 0.62 + bob);
+      }
+    }
+    // 이름표(색이 아니라 글자로 구분)
+    var label = name.length > 8 ? name.slice(0, 8) + '…' : name;
+    ctx.font = '600 ' + Math.max(11, Math.round(T * 0.26)) + 'px sans-serif';
+    var tw = ctx.measureText(label).width + 8;
+    ctx.fillStyle = who === 'me' ? 'rgba(15,118,110,0.92)' : 'rgba(22,32,31,0.72)';
+    // 내 이름표는 머리 위, 다른 인물은 발밑 — 옆에 붙어 서도 겹치지 않게
+    var ty = who === 'me' ? sy - T * 0.52 : sy + T * 0.98;
+    roundRect(sx + T / 2 - tw / 2, ty, tw, T * 0.34, 4); ctx.fill();
+    ctx.fillStyle = '#FFFFFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, sx + T / 2, ty + T * 0.17);
+  }
+  // ❗가 들어갈 수 있는 캔버스 안 영역: 위 HUD(시간·할 일·버튼) 아래, 아래 버튼·안내 문구 위
+  var lastMarker = null;
+  function safeArea() {
+    var cr = canvas.getBoundingClientRect(), top = 6, bottom = viewH - 6;
+    ['.hud-left', '.hud .bar-actions', '#m-say'].forEach(function (q) {
+      var e = document.querySelector(q);
+      if (e && e.getClientRects().length) top = Math.max(top, e.getBoundingClientRect().bottom - cr.top + 8);
+    });
+    ['#v-map .map-controls', '#v-map .map-help'].forEach(function (q) {
+      var e = document.querySelector(q);
+      if (e && e.getClientRects().length) bottom = Math.min(bottom, e.getBoundingClientRect().top - cr.top - 8);
+    });
+    if (bottom - top < 80) { top = 6; bottom = viewH - 6; } // 아주 좁으면 가림보다 표시를 우선
+    return { left: 6, right: viewW - 6, top: top, bottom: bottom };
+  }
+  function drawMarker(t) {
+    var b = targetBox();
+    var school = window.PrivacySchool;
+    if (school && school.contains(b.x, b.y) && !school.contains(me.x, me.y)) b = { x: 10, y: 10, w: 2, h: 1 };
+    if (WD.indoor(b.x, b.y) && !WD.indoor(me.x, me.y)) b = { x: WD.INDOOR.entrance.x, y: WD.INDOOR.entrance.y, w: 1, h: 1 };
+    // 방 안인데 목적지가 바깥이면 나가는 방문에(어디로 가야 하는지 바로 보이게)
+    if (!WD.indoor(b.x, b.y) && WD.indoor(me.x, me.y)) b = { x: WD.INDOOR.exit.x, y: WD.INDOOR.exit.y, w: 1, h: 1 };
+    var bob = o.reduceMotion() ? 0 : Math.sin(t / 220) * T * 0.08;
+    var mx = (b.x + b.w / 2) * T - cam.x, my = b.y * T - cam.y - T * (b.who ? 0.95 : 0.35) + bob;
+    // 화면 밖이거나 위 안내 상자·아래 버튼에 가리는 자리면, 보이는 띠 안으로 옮기고 방향 화살표를 단다
+    var iconSize = Math.max(32, Math.round(T * 0.8)), sa = safeArea();
+    var tx0 = mx, ty0 = my;
+    mx = Math.max(sa.left + iconSize / 2, Math.min(sa.right - iconSize / 2, mx));
+    my = Math.max(sa.top + iconSize / 2, Math.min(sa.bottom - iconSize / 2, my));
+    var off = Math.abs(mx - tx0) > 2 || Math.abs(my - ty0) > 2;
+    lastMarker = { x: mx, y: my, tx: b.x, ty: b.y, off: off };
+    if (questIcon) {
+      // 생성 원본의 투명 여백을 제외한 알파 경계(>16). 원본 PNG는 보존한다.
+      var iw = Math.round(iconSize * 630 / 669);
+      ctx.drawImage(questIcon, 313, 293, 630, 669, Math.round(mx - iw / 2), Math.round(my - iconSize / 2), iw, iconSize);
+    } else {
+      ctx.fillStyle = '#FFF6DB';
+      roundRect(mx - iconSize / 2, my - iconSize / 2, iconSize, iconSize, 4); ctx.fill();
+      ctx.strokeStyle = '#17334C'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#9B6100'; ctx.font = 'bold ' + Math.round(T * 0.4) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('!', mx, my + 1);
+    }
+    ctx.fillStyle = '#17334C';
+    if (off) {
+      var ang = Math.atan2((b.y + b.h / 2) * T - cam.y - my, (b.x + b.w / 2) * T - cam.x - mx);
+      ctx.save(); ctx.translate(mx + Math.cos(ang) * T * 0.45, my + Math.sin(ang) * T * 0.45); ctx.rotate(ang);
+      ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(-4, -5); ctx.lineTo(-4, 5); ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+  }
+  // 말풍선: 인물마다 하나씩, 3.2초 뒤 사라짐. 길면 12자에서 자른다
+  // weak(자동 '📱…')은 살아 있는 반응 말풍선을 덮지 않는다
+  function setBubble(c, text, weak) {
+    text = String(text);
+    var now = performance.now();
+    if (weak && bubbles.some(function (b) { return b.who === c && !b.weak && b.until > now; })) return;
+    bubbles = bubbles.filter(function (b) { return b.who !== c; });
+    bubbles.push({ text: text.length > 12 ? text.slice(0, 12) + '…' : text, who: c, until: now + 3200, weak: !!weak });
+  }
+  function bubbleFor(who, text, weak) {
+    var c = who === 'me' ? 'me' : cast.filter(function (k) { return k.who === who; })[0];
+    if (!c) return false;
+    setBubble(c, text, weak);
+    return true;
+  }
+  function liveBubbles() { var now = performance.now(); return bubbles.filter(function (b) { return b.until > now; }); }
+  function drawBubble() {
+    bubbles = liveBubbles();
+    bubbles.forEach(drawOneBubble);
+  }
+  function drawOneBubble(bubble) {
+    var who = bubble.who === 'me' ? { x: me.fx, y: me.fy } : bubble.who;
+    var school = window.PrivacySchool;
+    if (school && school.contains(who.x, who.y) && !school.contains(me.x, me.y)) return;
+    var cx = who.x * T - cam.x + T / 2;
+    var by = who.y * T - cam.y - T * 0.3;
+    var fs = Math.max(13, Math.round(T * 0.32));
+    ctx.font = fs + 'px sans-serif';
+    var lines = wrapText(bubble.text, Math.min(viewW - 40, T * 7));
+    var w = Math.max.apply(null, lines.map(function (l) { return ctx.measureText(l).width; })) + 20;
+    var h = lines.length * (fs + 4) + 14;
+    var x = Math.max(8, Math.min(viewW - w - 8, cx - w / 2)), y = Math.max(8, by - h);
+    ctx.fillStyle = 'rgba(255,255,255,0.97)';
+    roundRect(x, y, w, h, 10); ctx.fill();
+    ctx.strokeStyle = 'rgba(22,32,31,0.25)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#16201F'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    lines.forEach(function (l, i) { ctx.fillText(l, x + 10, y + 7 + i * (fs + 4)); });
+  }
+  function wrapText(text, maxW) {
+    var out = [], cur = '';
+    Array.prototype.forEach.call(text, function (ch) {
+      if (ctx.measureText(cur + ch).width > maxW && cur) { out.push(cur); cur = ch; } else cur += ch;
+    });
+    if (cur) out.push(cur);
+    return out.slice(0, 4);
+  }
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+
+  /* ── 초기화 ─────────────────────── */
+  function init(options) {
+    o = options;
+    canvas = $('m-canvas'); wrap = $('m-wrap');
+    ctx = canvas.getContext('2d');
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', function () { held = []; });
+    canvas.addEventListener('pointerdown', onPointer);
+    window.addEventListener('resize', resize);
+    if (window.ResizeObserver) new ResizeObserver(function () { resize(); }).observe(wrap); // 무대 크기가 바뀌어도 캔버스를 맞춘다
+    $('btn-map-act').addEventListener('click', act);
+    $('btn-map-skip').addEventListener('click', skipToTarget);
+  }
+
+  window.PrivacyMap = {
+    init: init, show: show, hide: hide, stage: stage, bubble: bubbleFor, clearBubbles: clearBubbles,
+    // 검증용(읽기 전용 + 경로 계산)
+    debug: {
+      me: function () { return { x: me.x, y: me.y, dir: me.dir, moving: me.moving, area: WD.areaName(me.x, me.y) }; },
+      route: routeToTarget,
+      nearTarget: nearTarget,
+      marker: function () { return lastMarker; },
+      cam: function () { return { x: cam.x, y: cam.y, tx: camTarget.x, ty: camTarget.y }; },
+      walkFrame: walkFrame,
+      tick: function (ms) { loop(lastT + ms); }, // 검증용: 화면 루프를 정해진 시간만큼 한 번 돌림
+      routeTo: function (tx, ty) { return WD.findPath({ x: me.x, y: me.y }, function (x, y) { return x === tx && y === ty; }, blocked); },
+      roof: function () { var s = window.PrivacySchool; return !!(s && !s.contains(me.x, me.y)); },
+      stage: function () {
+        return { mode: mode, place: stageInfo && stageInfo.place, tint: stageInfo && stageInfo.tint,
+          cast: cast.map(function (c) { return c.who; }),
+          bubbles: liveBubbles().map(function (b) { return b.who === 'me' ? 'me' : b.who.who; }),
+          bubbleTexts: liveBubbles().map(function (b) { return b.text; }) };
+      },
+      tileToClient: function (tx, ty) { var r = canvas.getBoundingClientRect(); return { x: r.left + tx * T - cam.x + T / 2, y: r.top + ty * T - cam.y + T / 2 }; }
+    }
+  };
+})();

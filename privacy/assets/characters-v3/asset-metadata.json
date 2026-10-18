@@ -1,0 +1,50 @@
+[
+  {
+    "name": "boy-map-front",
+    "width": 1024,
+    "height": 1536,
+    "box": [
+      106,
+      8,
+      767,
+      1502
+    ],
+    "transparent": 852344
+  },
+  {
+    "name": "boy-portrait",
+    "width": 1024,
+    "height": 1536,
+    "box": [
+      61,
+      12,
+      963,
+      1524
+    ],
+    "transparent": 553386
+  },
+  {
+    "name": "girl-map-front",
+    "width": 1024,
+    "height": 1536,
+    "box": [
+      56,
+      14,
+      951,
+      1501
+    ],
+    "transparent": 715270
+  },
+  {
+    "name": "girl-portrait",
+    "width": 1024,
+    "height": 1536,
+    "box": [
+      44,
+      13,
+      968,
+      1523
+    ],
+    "transparent": 410651
+  }
+]

@@ -1,0 +1,62 @@
+[
+  {
+    "name": "hayun-map-front",
+    "width": 1024,
+    "height": 1536,
+    "box": [
+      129,
+      14,
+      766,
+      1509
+    ],
+    "transparent": 880046
+  },
+  {
+    "name": "seoa-map-front",
+    "width": 1024,
+    "height": 1536,
+    "box": [
+      75,
+      12,
+      847,
+      1495
+    ],
+    "transparent": 869108
+  },
+  {
+    "name": "dohyun-map-front",
+    "width": 1024,
+    "height": 1536,
+    "box": [
+      106,
+      7,
+      777,
+      1500
+    ],
+    "transparent": 885154
+  },
+  {
+    "name": "minjun-map-front",
+    "width": 1024,
+    "height": 1536,
+    "box": [
+      110,
+      7,
+      768,
+      1513
+    ],
+    "transparent": 885124
+  },
+  {
+    "name": "teacher-map-front",
+    "width": 1024,
+    "height": 1536,
+    "box": [
+      117,
+      6,
+      785,
+      1495
+    ],
+    "transparent": 863954
+  }
+]

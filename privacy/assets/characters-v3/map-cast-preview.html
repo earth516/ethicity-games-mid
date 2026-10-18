@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
+<title>친구와 선생님 · 맵 정면 디자인</title>
+<style>
+body{margin:30px;background:#edf1ed;color:#243d3a;font-family:system-ui,sans-serif}h1{font-size:26px}p{line-height:1.65}main{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;max-width:1200px}article{background:#fff;border:1px solid #cbd7d0;border-radius:14px;padding:20px;min-width:0}h2{font-size:19px;margin:0 0 12px}.art{display:block;width:100%;height:320px;object-fit:contain;background:#e4ece5;border-radius:8px}.samples{display:flex;align-items:flex-end;gap:22px;min-height:150px;padding:14px;background:#d8c4a4;margin-top:12px;border-radius:8px}.samples canvas{display:block;image-rendering:pixelated}small{display:block;font-size:12px;color:#52675c;margin-top:8px;overflow-wrap:anywhere}.error{color:#9c2525}footer{font-size:13px;margin-top:20px;line-height:1.65}@media(max-width:700px){main{grid-template-columns:1fr}body{margin:16px}}
+</style>
+</head>
+<body>
+<h1>친구와 선생님 · 맵 정면 디자인</h1>
+<p>하윤·서아·도현·민준·담임 선생님의 고해상도 정면 디자인입니다.<br>완성된 픽셀 프레임이나 걷기 시트가 아닙니다. 아래는 에셋 비교용 화면입니다.</p>
+<main></main>
+<footer>48×72와 96×144 샘플은 고해상도 원본을 알파 경계로 잘라 단순 축소한 것입니다.<br>샘플 캔버스는 표시 크기와 내부 해상도가 같습니다. 최종 픽셀 정리·방향별 프레임·걷기 애니메이션은 별도 제작이 필요합니다.</footer>
+<script>
+const entries=[['hayun','하윤'],['seoa','서아'],['dohyun','도현'],['minjun','민준'],['teacher','담임 선생님']];
+window.assetChecks=[];
+entries.forEach(([id,label])=>{
+  const name=id+'-map-front';
+  const card=document.createElement('article'),title=document.createElement('h2'),art=document.createElement('canvas'),meta=document.createElement('small');
+  title.textContent=label;
+  art.width=600;art.height=600;art.className='art';
+  art.setAttribute('role','img');art.setAttribute('aria-label',label+' 고해상도 정면 디자인');
+  meta.textContent=name+'.png · 불러오는 중';
+  card.append(title,art,meta);document.querySelector('main').append(card);
+  const im=new Image();
+  function fail(error){meta.className='error';meta.textContent=name+'.png · '+error;window.assetChecks.push({name,error:String(error)});}
+  im.onload=()=>{
+    try{
+      const width=im.naturalWidth,height=im.naturalHeight;
+      const temp=document.createElement('canvas');temp.width=width;temp.height=height;
+      const g=temp.getContext('2d');g.drawImage(im,0,0);
+      const data=g.getImageData(0,0,width,height).data;
+      let l=width,t=height,r=-1,b=-1,transparent=0;
+      for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+        const a=data[(y*width+x)*4+3];
+        if(a===0)transparent++;
+        if(a<16)continue;
+        l=Math.min(l,x);t=Math.min(t,y);r=Math.max(r,x);b=Math.max(b,y);
+      }
+      if(r<l||b<t)throw Error('표시할 불투명 픽셀이 없습니다');
+      const box=[l,t,r-l+1,b-t+1];
+      function render(canvas,padding){
+        const ctx=canvas.getContext('2d'),s=Math.min((canvas.width-padding*2)/box[2],(canvas.height-padding*2)/box[3]);
+        ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';
+        ctx.drawImage(im,...box,(canvas.width-box[2]*s)/2,canvas.height-padding-box[3]*s,box[2]*s,box[3]*s);
+      }
+      render(art,18);
+      const row=document.createElement('div');row.className='samples';
+      [1,2].forEach(scale=>{
+        const group=document.createElement('div'),sample=document.createElement('canvas'),note=document.createElement('small');
+        sample.width=48*scale;sample.height=72*scale;
+        sample.style.width=sample.width+'px';sample.style.height=sample.height+'px';
+        sample.setAttribute('role','img');sample.setAttribute('aria-label',label+' '+sample.width+' × '+sample.height+' 축소 샘플');
+        render(sample,scale*2);
+        note.textContent=sample.width+' × '+sample.height;
+        group.append(sample,note);row.append(group);
+      });
+      card.insertBefore(row,meta);
+      meta.textContent=name+'.png · '+width+' × '+height+' · 알파 경계 (α≥16): ['+box.join(', ')+'] · 완전 투명 '+transparent.toLocaleString()+' px';
+      window.assetChecks.push({name,width,height,box,transparent});
+    }catch(error){fail(error.message);}
+  };
+  im.onerror=()=>fail('이미지를 불러오지 못했습니다');
+  im.src=name+'.png';
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,98 @@
+[
+  {
+    "name": "fence-side",
+    "width": 887,
+    "height": 1774,
+    "box": [
+      287,
+      65,
+      270,
+      1615
+    ],
+    "transparent": 1290783
+  },
+  {
+    "name": "house-brick",
+    "width": 1374,
+    "height": 1145,
+    "box": [
+      19,
+      100,
+      1351,
+      949
+    ],
+    "transparent": 439113
+  },
+  {
+    "name": "house-sage",
+    "width": 1374,
+    "height": 1145,
+    "box": [
+      25,
+      65,
+      1324,
+      1016
+    ],
+    "transparent": 420181
+  },
+  {
+    "name": "fence-front",
+    "width": 1983,
+    "height": 793,
+    "box": [
+      55,
+      176,
+      1879,
+      500
+    ],
+    "transparent": 899949
+  },
+  {
+    "name": "hedge",
+    "width": 1774,
+    "height": 887,
+    "box": [
+      69,
+      229,
+      1633,
+      539
+    ],
+    "transparent": 963301
+  },
+  {
+    "name": "gate-parts",
+    "width": 1536,
+    "height": 1024,
+    "box": [
+      58,
+      162,
+      1447,
+      695
+    ],
+    "transparent": 1140549
+  },
+  {
+    "name": "house-balcony",
+    "width": 1157,
+    "height": 1360,
+    "box": [
+      17,
+      22,
+      1123,
+      1295
+    ],
+    "transparent": 351755
+  },
+  {
+    "name": "mailbox",
+    "width": 1254,
+    "height": 1254,
+    "box": [
+      368,
+      121,
+      531,
+      1010
+    ],
+    "transparent": 1286733
+  }
+]
