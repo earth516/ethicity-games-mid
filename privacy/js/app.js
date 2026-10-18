@@ -280,6 +280,11 @@
     var st = WD.STAGES[sceneId], v = story.scenes[sceneId].view || { type: 'place' };
     return (st && st.device) || DEVICE[v.type] || 'phone';
   }
+  // 장면 중 주인공이 보일 자리: 넓은 화면은 폰 왼쪽 빈 곳, 좁은 화면은 위쪽 맵 자리
+  function stageFocus(device) {
+    if (device === 'none') return { x: 0.5, y: 0.36 };
+    return $('stage').clientWidth <= 720 ? { x: 0.5, y: 0.17 } : { x: 0.3, y: 0.36 };
+  }
   function nodeOf(line) { var n = lineNode(line); n._line = line; return n; }
   // 줄이 나타날 때: 같은 공간 친구 머리 위 말풍선(폰 메시지는 원문 대신 📱…) + 장면에 적어 둔 반응
   function stageBubble(line) {
@@ -341,7 +346,7 @@
     if (stagedScene !== run.scene) {
       stagedScene = run.scene;
       cutPending = true;
-      ready = window.PrivacyMap.stage(st, { card: animate && st.card ? st.card : null });
+      ready = window.PrivacyMap.stage(st, { card: animate && st.card ? st.card : null, focus: stageFocus(device) });
     }
     ready.then(function () {
       cutPending = false;

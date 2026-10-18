@@ -254,6 +254,8 @@
       ok(d.bubbles.indexOf('dohyun') >= 0 && d.bubbles.indexOf('minjun') >= 0, '메시지 보낸 친구 머리 위 말풍선: ' + d.bubbles);
       ok(d.bubbleTexts.indexOf('…') >= 0 && d.bubbleTexts.indexOf('👀') >= 0, '손으로 쓴 반응(서아 …, 하윤 👀): ' + d.bubbleTexts);
       ok(d.bubbleTexts.every(function (t) { return t.indexOf('올려야지') < 0; }), '폰 메시지 원문은 머리 위에 안 뜸');
+      var mp = PrivacyMap.debug.me(), mpt = PrivacyMap.debug.tileToClient(mp.x, mp.y), phr = $('#g-phone').getBoundingClientRect(), dkr = $('#g-dock').getBoundingClientRect();
+      ok(mpt.x < phr.left && mpt.y < dkr.top, '주인공이 폰·선택 상자에 가리지 않음 ' + JSON.stringify([Math.round(mpt.x), Math.round(mpt.y), Math.round(phr.left), Math.round(dkr.top)]));
       var m1 = PrivacyMap.debug.me(); key('ArrowLeft'); key('ArrowLeft', 'keyup'); await wait(300); var m2 = PrivacyMap.debug.me();
       ok(m1.x === m2.x && m1.y === m2.y && view() === 'v-game', '장면 중 방향키로 걷지 않음');
       document.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true })); await wait();

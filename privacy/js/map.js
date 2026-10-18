@@ -26,7 +26,7 @@
   var o = null;                 // init 옵션
   var canvas, ctx, wrap;
   var active = false, raf = null, tmr = null, lastT = 0;
-  var mode = null, stageInfo = null; // mode: 'walk'(걷기·입력) | 'stage'(장면 무대: 그리기만)
+  var mode = null, stageInfo = null, focus = null; // focus: 장면 중 주인공을 둘 화면 위치(비율). 폰·선택 상자에 가리지 않게 // mode: 'walk'(걷기·입력) | 'stage'(장면 무대: 그리기만)
   var run = null, trig = null, targetId = null;
   var cast = [], blocked = {};
   var me = { x: 0, y: 0, dir: 'down', fx: 0, fy: 0, moving: false, t: 0, from: null, to: null, door: null, frame: 0 };
@@ -144,7 +144,7 @@
     $('m-time').textContent = trig.time;
     $('m-mission').textContent = trig.mission;
     held = []; path = null; actOnArrive = false; busy = false; bubbles = [];
-    mode = 'walk'; stageInfo = null;
+    mode = 'walk'; stageInfo = null; focus = null;
     lastArea = '';
     updateArea();
     say(trig.hint || '');
@@ -158,7 +158,7 @@
   // 장면 무대: 입력 없이 장소·인물·시간대만 그린다. card가 있으면 잠깐 컷 카드를 띄우고 끝나면 resolve
   function stage(st, opts) {
     opts = opts || {};
-    mode = 'stage'; stageInfo = st; trig = null; targetId = null;
+    mode = 'stage'; stageInfo = st; trig = null; targetId = null; focus = opts.focus || null;
     cast = st.cast.slice(); blocked = {};
     cast.forEach(function (c) { loadSprite(c.who, 'char_' + c.who + '.png'); });
     var look = o.playerLook();
@@ -408,8 +408,11 @@
   }
   function draw(t) {
     var mapW = WD.W * T, mapH = WD.H * T;
-    cam.x = Math.max(0, Math.min(mapW - viewW, me.fx * T + T / 2 - viewW / 2));
-    cam.y = Math.max(0, Math.min(mapH - viewH, me.fy * T + T / 2 - viewH / 2));
+    var fx = focus ? focus.x : 0.5, fy = focus ? focus.y : 0.5;
+    // 걷기: 맵 끝에서 멈춤 / 장면: 주인공을 focus 자리에 두려고 맵 밖(폰·선택 상자 뒤)까지 조금 넘어갈 수 있음
+    var slack = focus ? 0.5 : 0;
+    cam.x = Math.max(-viewW * slack, Math.min(mapW - viewW * (1 - slack), me.fx * T + T / 2 - viewW * fx));
+    cam.y = Math.max(-viewH * slack, Math.min(mapH - viewH * (1 - slack), me.fy * T + T / 2 - viewH * fy));
     if (mapW < viewW) cam.x = (mapW - viewW) / 2;
     ctx.fillStyle = '#5E8F55';
     ctx.fillRect(0, 0, viewW, viewH);
