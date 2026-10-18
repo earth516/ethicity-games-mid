@@ -60,7 +60,7 @@
     }
   }
   // 바닥 타일 문자 → 아틀라스 이름
-  var FLOOR = { c: 'floor_class', l: 'floor_library', h: 'floor_hall', g: 'floor_grass', p: 'floor_dirt', y: 'floor_sand', r: 'floor_room', w: 'water', H: 'house_wall', o: 'house_door', x: 'door_school', f: 'floor_grass', T: 'floor_grass' };
+  var FLOOR = { c: 'floor_class', l: 'floor_library', h: 'floor_hall', g: 'floor_grass', p: 'floor_dirt', y: 'floor_sand', r: 'floor_room', w: 'water', H: 'house_wall', o: 'house_door', x: 'door_school', f: 'floor_grass', T: 'floor_grass', e: 'floor_grass' };
   // 사물 id → 아틀라스 이름(함수면 상황에 따라)
   var OBJ_ART = {
     board: 'blackboard', notice: 'noticeboard', tdesk: 'desk_teacher', locker: 'locker', store: 'store_counter',
@@ -190,6 +190,7 @@
   function place(p) { me.x = p.x; me.y = p.y; me.dir = p.dir || 'down'; me.fx = p.x; me.fy = p.y; me.moving = false; }
   function nudgeFree() {
     if (WD.walkable(me.x, me.y, blocked)) return;
+    if (!WD.walkable(me.x, me.y)) { var nw = WD.nearestWalkable(me.x, me.y, blocked); if (nw) { place({ x: nw.x, y: nw.y, dir: me.dir }); return; } }
     var p = WD.findPath({ x: me.x, y: me.y }, function (x, y) { return WD.walkable(x, y, blocked); }, {});
     if (!p) return;
     var cur = { x: me.x, y: me.y };
@@ -451,6 +452,7 @@
     var tileAt = function (xx, yy) { return !inside && WD.indoor(xx, yy) ? 'T' : WD.grid[yy][xx]; };
     // Wider crowns can extend into the viewport from neighboring cells.
     var outdoor = window.PrivacyOutdoor;
+    var hood = !inside && window.PrivacyNeighborhood; // 주택가·낮은 담장·교문·생울타리(그리기만)
     for (y = y0; y <= Math.min(WD.H - 1, y1 + 2); y++) for (x = Math.max(0, x0 - 1); x <= Math.min(WD.W - 1, x1 + 1); x++) {
       var sx = x * T - cam.x, sy = y * T - cam.y;
       if (inside && !WD.indoor(x, y)) { ctx.fillStyle = '#dfe7e3'; ctx.fillRect(sx, sy, T + 1, T + 1); continue; }
@@ -477,10 +479,12 @@
         var variation = ((xx * 7 + yy * 11) % 3) * 0.08;
         if (!(outdoor && outdoor.draw(ctx, 'tree', xx - 0.32 - variation / 2, yy + 1, 1.64 + variation, 2.25 + variation, T, cam))) blit('tree', xx, yy);
       }; })(x, y) });
-      if (ch === 'f') list.push({ y: y, fn: (function (xx, yy) { return function () { blit('fence', xx, yy); }; })(x, y) });
-      if (ch === 'd' && x === 22 && y === 17) list.push({ y: y, fn: function () { blit('gate', 22, 17); } });
+      // 옛 높은 철창·교문 타일은 새 담장 그림이 없을 때만(있으면 neighborhood.js가 낮은 담장·열린 교문을 그림)
+      if (ch === 'f' && !hood) list.push({ y: y, fn: (function (xx, yy) { return function () { blit('fence', xx, yy); }; })(x, y) });
+      if (ch === 'd' && x === 22 && y === 17 && !hood) list.push({ y: y, fn: function () { blit('gate', 22, 17); } });
     }
     if (!inside && outdoor) outdoor.draw(ctx, 'pond', 26.9, 21.1, 4.2, 2.2, T, cam);
+    if (hood) hood.collect(list, ctx, T, cam, { x0: x0, y0: y0, x1: x1, y1: y1 });
     if (inside && room) room.details(ctx, T, cam);
     if (!inside && school) {
       if (schoolCovered) list.push({ y: 10, fn: function () { school.exterior(ctx, T, cam); } });
@@ -494,7 +498,8 @@
     WD.OBJECTS.forEach(function (ob) {
       if (WD.indoor(ob.x, ob.y) !== inside) return;
       if (schoolCovered && school.contains(ob.x, ob.y)) return;
-      if (!(ob.x <= x1 + 1 && ob.x + ob.w >= x0 - 1 && ob.y <= y1 + 2 && ob.y + ob.h >= y0 - 1)) return;
+      var up = hood && ob.art ? hood.rise(ob) : 0; // 큰 집 그림은 위로 솟으니 컬링 여유를 그만큼
+      if (!(ob.x - 1 <= x1 + 1 && ob.x + ob.w + 1 >= x0 - 1 && ob.y - up <= y1 + 2 && ob.y + ob.h >= y0 - 1)) return;
       var name = art && artFor(ob);
       var bottom = ob.y + ob.h - 1;
       if (inside && room && ['bed', 'mypc', 'mybook', 'plush'].indexOf(ob.id) >= 0) {
@@ -510,6 +515,7 @@
         } });
         return;
       }
+      if (hood && ob.art) { list.push({ y: bottom, fn: function () { if (!hood.drawObject(ctx, ob, T, cam)) drawObject(ob); } }); return; }
       if (!name) { list.push({ y: ob.wall ? -1 : bottom, fn: function () { drawObject(ob); } }); return; }
       list.push({ y: ob.wall ? -1 : bottom, fn: function () {
         if (school && school.object(ctx, ob, T, cam, (trig && trig.target.obj === 'pc3') || (stageInfo && stageInfo.pcOn))) return;
@@ -716,6 +722,7 @@
       me: function () { return { x: me.x, y: me.y, dir: me.dir, moving: me.moving, area: WD.areaName(me.x, me.y) }; },
       route: routeToTarget,
       nearTarget: nearTarget,
+      routeTo: function (tx, ty) { return WD.findPath({ x: me.x, y: me.y }, function (x, y) { return x === tx && y === ty; }, blocked); },
       roof: function () { var s = window.PrivacySchool; return !!(s && !s.contains(me.x, me.y)); },
       stage: function () {
         return { mode: mode, place: stageInfo && stageInfo.place, tint: stageInfo && stageInfo.tint,

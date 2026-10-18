@@ -49,7 +49,7 @@
         set: function (v) { srcDesc.set.call(this, /char_|minjun_sleep/.test(String(v)) ? 'assets/__missing__.png' : v); } });
       localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.settings.v1', instant); break;
     case 'normal-speed': localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.settings.v1', '{"look":"m"}'); break;
-    case 'shot-map': case 'shot-road': case 'shot-start': case 'shot-game': case 'shot-react': case 'shot-ending': case 'shot-path': case 'shot-chapter':
+    case 'shot-map': case 'shot-road': case 'shot-start': case 'shot-game': case 'shot-react': case 'shot-ending': case 'shot-path': case 'shot-chapter': case 'shot-hood': case 'shot-gate': case 'shot-south': case 'shot-edge':
       window.__probe.PLAYER = JSON.stringify({ character: 'char_03', nickname: '반짝이는 고래와 은하수 너머의 친구들' });
       localStorage.setItem('ethicity.player', window.__probe.PLAYER); localStorage.setItem('ethicity.privacy.settings.v1', instant); break;
     default: localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.settings.v1', instant);

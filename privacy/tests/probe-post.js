@@ -367,6 +367,62 @@
       ok($$('.ico-quest').every(function (im) { return /quest\.png/.test(getComputedStyle(im).backgroundImage) && im.getAttribute('role') === 'img' && !!im.getAttribute('aria-label'); }), 'quest.png 사용·대체 글자 있음');
     }
 
+    else if (s === 'neighborhood') {
+      $('#btn-new').click();
+      await play(R.A, { upto: 1, stopAtMap: true });
+      var NM = PrivacyMap.debug, NW = window.PRIVACY_WORLD;
+      async function walkTo(tx, ty) {
+        var rt = NM.routeTo(tx, ty);
+        if (!rt) { fail.push('길 없음 ' + tx + ',' + ty); return false; }
+        for (var k = 0; k < rt.length; k++) { key(ARROW[rt[k]]); key(ARROW[rt[k]], 'keyup'); var g = 0; await wait(16); while (NM.me().moving && g++ < 100) await wait(16); }
+        var m = NM.me(); return m.x === tx && m.y === ty;
+      }
+      ok(NW.NEIGHBORS.length === 3, '이웃집 3채');
+      for (var ni = 0; ni < NW.NEIGHBORS.length; ni++) {
+        var nb = NW.NEIGHBORS[ni];
+        ok(await walkTo(nb.approach.x, nb.approach.y), nb.name + ' 현관 앞까지 걸어감');
+        ok(NM.me().area === '주택가', nb.name + ' 앞은 주택가: ' + NM.me().area);
+        key('ArrowUp'); key('ArrowUp', 'keyup'); await wait(250);
+        var nm = NM.me();
+        ok(nm.x === nb.approach.x && nm.y === nb.approach.y && nm.dir === 'up', nb.name + ' 안으로는 들어가지 않음');
+        key(' '); await wait(50);
+        ok(!$('#talk').hidden && $('#talk .talk-text').textContent.indexOf(nb.look.slice(0, 8)) >= 0, nb.name + ' 조사: 생활 대사');
+        await passTalk();
+        var ns = PrivacyApp.state();
+        ok(view() === 'v-map' && ns.screen === 'map' && ns.mapTarget === 'c1_e1_a', nb.name + ' 조사 뒤에도 같은 걷기(문 이동·장면 없음)');
+      }
+      ok(await walkTo(43, 18), '우리 집 현관 옆');
+      key('ArrowRight'); key('ArrowRight', 'keyup'); await wait(250); key(' '); await wait(50);
+      ok(!$('#talk').hidden && /우편함/.test($('#talk .talk-text').textContent), '노란 우편함 조사');
+      await passTalk();
+      $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); await wait(); await passTalk(); await wait(50);
+      ok(view() === 'v-game' && PrivacyApp.state().scene === 'c1_e1_a', '주택가를 돌아본 뒤 본편 진행');
+    }
+
+    else if (s === 'pos-recover') {
+      var E3 = window.PrivacyEngine, ST3 = window.PRIVACY_STORY, PK3 = 'ethicity.privacy.progress.v1';
+      if (P.phase === 0) { // 저장 위치가 새로 생긴 벽돌집 안(39,26)
+        var m3 = E3.createState(ST3), g3 = 0;
+        while (!(m3.screen === 'map' && m3.mapTarget === 'c1_e1_a') && g3++ < 8) m3 = m3.screen === 'scene' && E3.needsChoice(ST3, m3) ? E3.choose(ST3, m3, 'photo') : E3.advance(ST3, m3);
+        m3.history = [];
+        localStorage.setItem(PK3, JSON.stringify({ v: 1, run: m3, explored: { pro_1: ['photo'] }, endingsSeen: ['B'], pos: { x: 39, y: 26, dir: 'up', for: 'c1_e1_a' } }));
+        sessionStorage.setItem('probe-saved', JSON.stringify(m3.stats));
+        sessionStorage.setItem('probe-phase', '1'); carry(); location.reload(); return;
+      }
+      ok(!$('#btn-continue').hidden, '이어 하기');
+      $('#btn-continue').click(); await wait(50);
+      var rm = PrivacyMap.debug.me();
+      ok(view() === 'v-map' && PrivacyApp.state().mapTarget === 'c1_e1_a', '같은 걷기에서 이어짐');
+      ok(window.PRIVACY_WORLD.walkable(rm.x, rm.y) && Math.abs(rm.x - 39) + Math.abs(rm.y - 26) <= 3, '집 안 저장 위치 → 가까운 걸을 수 있는 칸 ' + JSON.stringify(rm));
+      var pg = JSON.parse(ls(PK3));
+      ok(pg.endingsSeen.indexOf('B') >= 0 && pg.explored.pro_1 && JSON.stringify(PrivacyApp.state().stats) === sessionStorage.getItem('probe-saved'), '진행·완료 기록은 그대로');
+      checkOthersKept();
+      ok(ls('ethicity.player') === P.PLAYER, '공통 플레이어 정보 보존');
+      $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); await wait(); await passTalk(); await wait(50);
+      ok(view() === 'v-game' && PrivacyApp.state().scene === 'c1_e1_a', '복구 뒤 본편 진행');
+      sessionStorage.removeItem('probe-phase'); sessionStorage.removeItem('probe-carry');
+    }
+
     else if (s === 'sound') {
       ok(!/"sound":true/.test(ls('ethicity.privacy.settings.v1') || ''), '효과음은 기본 꺼짐');
       $('#btn-new').click();
@@ -643,6 +699,13 @@
         } else { $('#btn-map-skip').click(); }
         await wait(300);
         return;
+      }
+      if (s === 'shot-hood' || s === 'shot-gate' || s === 'shot-south' || s === 'shot-edge') { // 주택가·교문 화면 확인용: 그 자리까지 걸어감
+        $('#btn-new').click(); await play(R.A, { upto: 1, stopAtMap: true });
+        var dest = { 'shot-hood': [46, 20], 'shot-gate': [24, 16], 'shot-south': [44, 27], 'shot-edge': [58, 30] }[s];
+        var rr = PrivacyMap.debug.routeTo(dest[0], dest[1]) || [];
+        for (var q = 0; q < rr.length; q++) { key(ARROW[rr[q]]); key(ARROW[rr[q]], 'keyup'); await wait(16); while (PrivacyMap.debug.me().moving) await wait(16); }
+        await wait(500); return;
       }
       if (s === 'shot-chapter') { $('#btn-new').click(); await play(R.A, { stopAtChapter: 6 }); await wait(500); $('#c-summary .change-grid').scrollIntoView({ block: 'center' }); return; }
       var stop = { 'shot-start': -1, 'shot-game': 9, 'shot-react': 9, 'shot-ending': null, 'shot-path': null }[s];

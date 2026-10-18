@@ -45,7 +45,9 @@
     if (p && typeof p === 'object' && p.v === 1) {
       if (p.explored && typeof p.explored === 'object') progress.explored = p.explored;
       if (Array.isArray(p.endingsSeen)) progress.endingsSeen = p.endingsSeen.filter(function (c) { return typeof c === 'string'; });
-      if (p.pos && typeof p.pos === 'object' && window.PRIVACY_WORLD.walkable(p.pos.x, p.pos.y)) progress.pos = p.pos;
+      // 맵 위치: 칸 안이면 받아 둔다(새 건물·울타리 안이면 맵이 가장 가까운 걸을 수 있는 칸으로 옮김)
+      if (p.pos && typeof p.pos === 'object' && p.pos.x === (p.pos.x | 0) && p.pos.y === (p.pos.y | 0) &&
+        p.pos.x >= 0 && p.pos.y >= 0 && p.pos.x < window.PRIVACY_WORLD.W && p.pos.y < window.PRIVACY_WORLD.H) progress.pos = p.pos;
       if (p.run) {
         if (E.isValidState(story, p.run)) progress.run = p.run;
         else noticeMsgs.push('이전 진행을 이어 할 수 없어 처음부터 시작해요.');

@@ -14,7 +14,7 @@
 (function (root) {
   'use strict';
 
-  var W = 48, H = 23;
+  var W = 64, H = 34; // 2026-10-18 주택가 확장(옛 48×23의 학교·교문·마을 길·우리 집·내 방 좌표는 그대로)
   var grid = [];
   var y, x;
   for (y = 0; y < H; y++) { grid.push([]); for (x = 0; x < W; x++) grid[y].push('g'); }
@@ -39,11 +39,13 @@
     'H': { walk: false, name: '집 벽' },
     'o': { walk: true, name: '우리 집 문' },
     'r': { walk: true, name: '방 바닥' },
-    'x': { walk: true, name: '방문' }
+    'x': { walk: true, name: '방문' },
+    'e': { walk: false, name: '생울타리' }
   };
 
   /* ── 지형 ───────────────────────── */
-  rect(22, 0, 26, 11, 'T');                 // 학교 오른쪽 위 숲(방은 이 안에 따로 있음)
+  rect(22, 0, 42, 11, 'T');                 // 학교 오른쪽 위 숲(방은 이 안에 따로 있음)
+  rect(0, 23, 23, 11, 'T');                 // 학교 담장 아래 숲
   // 학교 건물
   rect(0, 0, 22, 11, '#');
   rect(1, 1, 10, 6, 'c');                   // 2학년 3반 교실
@@ -57,15 +59,25 @@
   rect(1, 12, 7, 3, 'p');                   // 매점 앞
   rect(12, 18, 9, 3, 'y');                  // 축제 부스 운동장
   at(22, 16, 'd'); at(22, 17, 'd');         // 교문
-  // 마을
-  rect(23, 11, 25, 1, 'T'); rect(23, 22, 25, 1, 'T'); rect(47, 11, 1, 12, 'T');
+  // 마을: 학교 → 교문 → 마을 길(연못·벤치 쉼터) → 우리 집 → 주택가. 북쪽은 숲, 동·남쪽 끝은 낮은 생울타리
+  rect(23, 11, 41, 1, 'T');
+  rect(63, 12, 1, 22, 'e'); rect(23, 33, 41, 1, 'e');
   rect(23, 16, 18, 2, 'p');                 // 마을 길
   rect(27, 19, 4, 2, 'w');                  // 연못
-  [[25, 13], [29, 12], [33, 13], [36, 20], [38, 12], [24, 20], [44, 20], [45, 12]].forEach(function (p) { at(p[0], p[1], 'T'); });
+  rect(39, 18, 2, 4, 'p');                  // 우리 집 앞에서 아래로 꺾어
+  rect(39, 20, 20, 2, 'p');                 // 주택가 큰길(동쪽)
+  rect(44, 22, 2, 7, 'p');                  // 남쪽 골목
+  rect(36, 29, 23, 2, 'p');                 // 아랫길
+  rect(48, 19, 1, 1, 'p');                  // 세이지 지붕 집 진입로
+  rect(39, 28, 1, 1, 'p');                  // 벽돌집 진입로
+  rect(49, 27, 1, 2, 'p');                  // 2층집 진입로
+  [[25, 13], [29, 12], [33, 13], [38, 12], [24, 20], [45, 12], [54, 14], [57, 17], [60, 19], [34, 23], [26, 25],
+    [31, 27], [55, 24], [61, 27], [25, 31], [33, 31], [53, 31]].forEach(function (p) { at(p[0], p[1], 'T'); });
   // 우리 집(바깥)
   rect(41, 13, 5, 5, 'H');
   rect(40, 16, 1, 3, 'p');
   rect(40, 18, 3, 1, 'p'); // 마을 길에서 현관 계단까지
+  rect(41, 19, 2, 1, 'p'); // 현관에서 나와 큰길로
   at(42, 18, 'o');
   // 내 방(숲 속 따로 떨어진 실내 — 문으로만 오간다)
   rect(30, 2, 10, 7, '#');
@@ -88,6 +100,8 @@
     { name: '교문', x: 19, y: 15, w: 4, h: 4 },
     { name: '마을 길', x: 23, y: 12, w: 16, h: 10 },
     { name: '우리 집 앞', x: 39, y: 12, w: 8, h: 10 },
+    { name: '주택가', x: 47, y: 12, w: 16, h: 10 },
+    { name: '주택가', x: 23, y: 22, w: 40, h: 11 },
     { name: '내 방', x: 31, y: 3, w: 8, h: 5 },
     { name: '운동장', x: 1, y: 11, w: 21, h: 11 }
   ];
@@ -115,8 +129,22 @@
     { id: 'bed', name: '침대', x: 31, y: 3, w: 1, h: 2, icon: '🛏', look: '내 침대. 아직 잘 시간은 아니다.' },
     { id: 'mypc', name: '내 책상 컴퓨터', x: 36, y: 3, w: 2, h: 1, icon: '💻', look: '내 책상과 컴퓨터.' },
     { id: 'mybook', name: '책꽂이', x: 38, y: 5, w: 1, h: 1, icon: '📚', look: '교과서와 만화책이 섞여 꽂혀 있다.' },
-    { id: 'plush', name: '큰 팬더 인형', x: 37, y: 6, w: 2, h: 2, icon: '🧸', look: '구석에 앉은 커다란 팬더 인형. 푹신한 배에 기대면 잠이 올 것 같다.' }
+    { id: 'plush', name: '큰 팬더 인형', x: 37, y: 6, w: 2, h: 2, icon: '🧸', look: '구석에 앉은 커다란 팬더 인형. 푹신한 배에 기대면 잠이 올 것 같다.' },
+    { id: 'mailbox', name: '노란 우편함', x: 44, y: 18, w: 1, h: 1, icon: '📮', art: 'mailbox', look: '노란 우편함. 여기가 우리 집이다.' }
   ];
+
+  /* 이웃집: 바깥 그림과 조사만(들어갈 수 없음, ❗·문 이동 없음). footprint = 막히는 칸, approach = 현관 앞 진입로 */
+  var NEIGHBORS = [
+    { id: 'nb_sage', name: '세이지 지붕 집', art: 'house-sage', x: 47, y: 16, w: 5, h: 3, drawW: 5, approach: { x: 48, y: 19 },
+      look: '화분에 막 물을 준 듯 흙이 젖어 있다. 저녁 준비하는 냄새가 난다.' },
+    { id: 'nb_brick', name: '벽돌집', art: 'house-brick', x: 37, y: 25, w: 5, h: 3, drawW: 5, approach: { x: 39, y: 28 },
+      look: '현관 앞에 자전거가 세워져 있다. 안에서 텔레비전 소리가 작게 들린다.' },
+    { id: 'nb_balcony', name: '발코니 2층집', art: 'house-balcony', x: 47, y: 24, w: 5, h: 3, drawW: 4.6, approach: { x: 49, y: 27 },
+      look: '발코니에 수건이 널려 있다. 위층에서 누군가 피아노를 연습한다.' }
+  ];
+  NEIGHBORS.forEach(function (n) {
+    OBJECTS.push({ id: n.id, name: n.name, x: n.x, y: n.y, w: n.w, h: n.h, icon: '🏠', art: n.art, drawW: n.drawW, look: n.look });
+  });
 
   /* 실내(내 방): 밖에 있을 땐 숲으로 가려 그리고, ❗는 집 문에 띄운다 */
   var INDOOR = { x: 30, y: 2, w: 10, h: 7, entrance: { x: 42, y: 18 } };
@@ -335,6 +363,15 @@
       return false;
     };
   }
+  function nearestWalkable(xx, yy, blocked) {
+    for (var r = 0; r <= Math.max(W, H); r++) {
+      for (var dy = -r; dy <= r; dy++) for (var dx = -r; dx <= r; dx++) {
+        if (Math.abs(dx) + Math.abs(dy) !== r) continue;
+        if (walkable(xx + dx, yy + dy, blocked)) return { x: xx + dx, y: yy + dy };
+      }
+    }
+    return null;
+  }
   function areaName(xx, yy) {
     for (var i = 0; i < AREAS.length; i++) {
       var a = AREAS[i];
@@ -348,7 +385,7 @@
     indoor: function (xx, yy) { return xx >= INDOOR.x && xx < INDOOR.x + INDOOR.w && yy >= INDOOR.y && yy < INDOOR.y + INDOOR.h; },
     triggers: TRIGGERS, idle: IDLE, DIRS: DIRS, PLACES: PLACES, STAGES: STAGES,
     tile: tile, objectAt: objectAt, walkable: walkable, stepFrom: stepFrom,
-    findPath: findPath, adjacentTo: adjacentTo, areaName: areaName,
+    findPath: findPath, adjacentTo: adjacentTo, areaName: areaName, nearestWalkable: nearestWalkable, NEIGHBORS: NEIGHBORS,
     object: function (id) { return OBJECTS.filter(function (o) { return o.id === id; })[0]; }
   };
   root.PRIVACY_WORLD = WORLD;

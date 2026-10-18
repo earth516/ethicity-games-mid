@@ -58,7 +58,7 @@
   });
   window.PrivacyTerrain = {
     drawCell: function (ctx, ch, x, y, tile, cam) {
-      if (!ground || !('gpyoHTf'.indexOf(ch) >= 0 || (ch === 'd' && x === 22))) return false;
+      if (!ground || !('gpyoHTfe'.indexOf(ch) >= 0 || (ch === 'd' && x === 22))) return false;
       var dx = Math.round(x * tile - cam.x), dy = Math.round(y * tile - cam.y);
       ctx.drawImage(ground, x * size, y * size, size, size, dx, dy,
         Math.round((x + 1) * tile - cam.x) - dx, Math.round((y + 1) * tile - cam.y) - dy);

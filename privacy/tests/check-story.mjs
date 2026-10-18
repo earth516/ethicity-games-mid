@@ -257,6 +257,48 @@ for (const id of TRIGGER_ORDER) {
   if (p) err('교문을 지나지 않고 집에 갈 수 있는 길이 있음');
 }
 
+// ── 6d. 주택가·담장 검사 ─────────────────
+{
+  if (WORLD.W < 60 || WORLD.H < 30) err('마을이 확장되지 않음: ' + WORLD.W + '×' + WORLD.H);
+  const NB = WORLD.NEIGHBORS || [];
+  if (NB.length !== 3) err('이웃집 3채가 아님: ' + NB.length);
+  if (new Set(NB.map((n) => n.art)).size !== NB.length) err('같은 집 그림을 복사해 씀');
+  const road = WORLD.SPAWNS.road;
+  const blockedAll = {};
+  for (const n of NB) {
+    const ob = WORLD.object(n.id);
+    if (!ob) { err('이웃집 사물 없음: ' + n.id); continue; }
+    for (let yy = ob.y; yy < ob.y + ob.h; yy++) for (let xx = ob.x; xx < ob.x + ob.w; xx++) if (WORLD.walkable(xx, yy)) err('이웃집을 뚫고 걸을 수 있음: ' + n.id + ' ' + xx + ',' + yy);
+    const ap = n.approach;
+    if (!WORLD.walkable(ap.x, ap.y)) err('이웃집 현관 앞이 막힘: ' + n.id);
+    if (!(ap.y === ob.y + ob.h && ap.x >= ob.x && ap.x < ob.x + ob.w)) err('현관 앞 칸이 집 바로 아래가 아님: ' + n.id);
+    if (!WORLD.findPath({ x: road.x, y: road.y }, (x, y) => x === ap.x && y === ap.y, {})) err('마을 길에서 이웃집 현관 앞까지 길이 없음: ' + n.id);
+    if (WORLD.DOORS[ap.x + ',' + ap.y] || WORLD.DOORS[ap.x + ',' + (ap.y - 1)]) err('이웃집에 들어가는 문이 생김: ' + n.id);
+    if (!ob.look) err('이웃집 조사 문구 없음: ' + n.id);
+  }
+  for (const t of Object.values(WORLD.triggers)) if (t.target.obj && NB.some((n) => n.id === t.target.obj)) err('이웃집이 사건 목적지가 됨');
+  // 우리 집: 우편함은 현관 옆이되 현관과 그 주변 칸을 막지 않는다
+  const mb = WORLD.object('mailbox');
+  if (!mb) err('노란 우편함 없음');
+  else {
+    if (Math.abs(mb.x - 42) > 3 || Math.abs(mb.y - 18) > 2) err('우편함이 우리 집 현관 근처가 아님');
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, 1]]) if (!WORLD.walkable(42 + dx, 18 + dy)) err('우리 집 현관 옆 칸이 막힘: ' + (42 + dx) + ',' + (18 + dy));
+  }
+  // 교문: 통로 2칸은 열리고 위·아래 기둥 칸은 막힘
+  if (!WORLD.walkable(22, 16) || !WORLD.walkable(22, 17)) err('교문 통로가 막힘');
+  if (WORLD.walkable(22, 15) || WORLD.walkable(22, 18)) err('교문 기둥 칸을 걸을 수 있음');
+  // 맵 가장자리는 모두 막혀 있다(생울타리·나무·담장)
+  for (let x = 0; x < WORLD.W; x++) for (const y of [0, WORLD.H - 1]) if (WORLD.walkable(x, y)) err('맵 가장자리가 열림: ' + x + ',' + y);
+  for (let y = 0; y < WORLD.H; y++) for (const x of [0, WORLD.W - 1]) if (WORLD.walkable(x, y)) err('맵 가장자리가 열림: ' + x + ',' + y);
+  // 생울타리 칸이 실제로 있다
+  if (!WORLD.grid.some((row) => row.indexOf('e') >= 0)) err('생울타리(e) 칸 없음');
+  // 내 방 가구에 닿을 수 있다(침대·컴퓨터·팬더)
+  for (const id of ['bed', 'mypc', 'plush']) {
+    const o = WORLD.object(id);
+    if (!WORLD.findPath({ x: 34, y: 7 }, WORLD.adjacentTo({ contains: (x, y) => x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h }), {})) err('내 방 ' + id + '에 닿을 수 없음');
+  }
+}
+
 // ── 6c. 장면 무대 검사 ─────────────────────
 // 모든 장면은 맵 위 한 장소에서 벌어진다: 장소·인물 위치·말풍선 기준 줄이 실제로 맞는지
 function sceneTexts(id) {
