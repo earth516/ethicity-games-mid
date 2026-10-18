@@ -33,6 +33,16 @@
       localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.settings.v1', instant); break;
     case 'corrupt-progress': localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.progress.v1', '{"v":1,"run":'); localStorage.setItem('ethicity.privacy.settings.v1', instant); break;
     case 'stale-progress': localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.progress.v1', '{"v":1,"run":{"v":1,"screen":"scene","scene":"사라진_장면","stats":{},"trust":{},"flags":{},"history":[],"visited":[]},"explored":{"pro_1":["sns"]},"endingsSeen":["B"]}'); localStorage.setItem('ethicity.privacy.settings.v1', instant); break;
+    case 'sound': // 소리 장치 흉내: 수신음이 몇 번 났는지 센다
+      window.__beeps = 0;
+      var noop = function () {};
+      var param = function () { return { setValueAtTime: noop, linearRampToValueAtTime: noop, exponentialRampToValueAtTime: noop, value: 0 }; };
+      var Fake = function () { this.currentTime = 0; this.state = 'running'; this.destination = {}; };
+      Fake.prototype.createOscillator = function () { return { type: '', frequency: param(), connect: function (n) { return n; }, start: function () { window.__beeps++; }, stop: noop }; };
+      Fake.prototype.createGain = function () { return { gain: param(), connect: function (n) { return n; } }; };
+      Fake.prototype.resume = function () { return Promise.resolve(); };
+      window.AudioContext = Fake; window.webkitAudioContext = Fake;
+      localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.settings.v1', instant); break;
     case 'no-sprites': // 캐릭터 시트를 못 불러오는 환경 흉내
       var srcDesc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
       Object.defineProperty(HTMLImageElement.prototype, 'src', { configurable: true, get: function () { return srcDesc.get.call(this); },

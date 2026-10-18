@@ -367,6 +367,28 @@
       ok($$('.ico-quest').every(function (im) { return /quest\.png/.test(getComputedStyle(im).backgroundImage) && im.getAttribute('role') === 'img' && !!im.getAttribute('aria-label'); }), 'quest.png 사용·대체 글자 있음');
     }
 
+    else if (s === 'sound') {
+      ok(!/"sound":true/.test(ls('ethicity.privacy.settings.v1') || ''), '효과음은 기본 꺼짐');
+      $('#btn-new').click();
+      await play(R.A, { upto: 0 });
+      ok(window.__beeps === 0, '꺼져 있으면 메시지가 와도 소리 없음');
+      $('#btn-menu').click(); await wait();
+      ok(!!$('#opt-sound') && !$('#opt-sound').checked, '메뉴에 효과음 켜기(꺼짐 표시)');
+      $('#opt-sound').click(); await wait();
+      $('#btn-menu-close').click(); await wait();
+      ok(JSON.parse(ls('ethicity.privacy.settings.v1')).sound === true && window.__beeps === 1, '켠 설정이 저장되고 미리듣기 한 번');
+      await wait(300);
+      var b0 = window.__beeps;
+      $$('#g-dock .choice')[0].click(); await wait(400);
+      var got = window.__beeps - b0;
+      ok(got >= 1 && got <= 3, '친구 메시지가 오면 수신음(한꺼번에 와도 겹치지 않게) ' + got + '번');
+      var gn = 0; while (!$('#btn-next') && gn++ < 100) await wait(20);
+      var b1 = window.__beeps;
+      $('#btn-next').click(); await wait(50);
+      $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); await wait(400); await passTalk(); await wait(50);
+      ok(window.__beeps >= b1, '맵·대화창에서는 수신음 강요 없음');
+    }
+
     else if (s === 'finale') {
       $('#btn-new').click();
       await play(R.D, { upto: R.D.length - 1 });

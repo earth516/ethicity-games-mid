@@ -21,7 +21,7 @@
   /* ── 상태 ───────────────────────── */
   var player = S.readPlayer(CFG.defaultNickname);
   var progress = { v: 1, run: null, explored: {}, endingsSeen: [], pos: null };
-  var settings = { speed: 'normal', reduceMotion: false, look: null };
+  var settings = { speed: 'normal', reduceMotion: false, look: null, sound: false };
   var revealTimer = null, revealQueue = [], revealDone = null;
   var pathBack = 'v-start', reflectBack = 'v-start';
   var noticeMsgs = [];
@@ -56,6 +56,7 @@
     if (st && typeof st === 'object') {
       if (SPEED_MS.hasOwnProperty(st.speed)) settings.speed = st.speed;
       settings.reduceMotion = !!st.reduceMotion;
+      settings.sound = st.sound === true;
       if (st.look === 'm' || st.look === 'f') settings.look = st.look;
     } else if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       settings.reduceMotion = true;
@@ -293,6 +294,29 @@
     if (device === 'none') return { x: 0.5, y: 0.36 };
     return $('stage').clientWidth <= 720 ? { x: 0.5, y: 0.17 } : { x: 0.7, y: 0.36 }; // 넓은 화면: 폰(왼쪽) 오른쪽 빈 곳
   }
+  /* ── 수신음: 메시지 하나당 짧은 '띠링' 한 번(파일 없이 합성). 기본 꺼짐 ── */
+  var audioCtx = null, lastChime = 0;
+  function chime(force) {
+    if (!settings.sound) return;
+    var now = Date.now();
+    if (!force && now - lastChime < 150) return; // 여러 줄이 한꺼번에 와도 겹치지 않게
+    lastChime = now;
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      audioCtx = audioCtx || new AC();
+      if (audioCtx.state === 'suspended' && audioCtx.resume) audioCtx.resume();
+      var t = audioCtx.currentTime, osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, t);
+      osc.frequency.setValueAtTime(1320, t + 0.07);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.12, t + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(t); osc.stop(t + 0.24);
+    } catch (e) { /* 소리를 못 내는 환경이면 조용히 넘어간다 */ }
+  }
   function nodeOf(line) { var n = lineNode(line); n._line = line; return n; }
   // 줄이 나타날 때: 같은 공간 친구 머리 위 말풍선(폰 메시지는 원문 대신 📱…) + 장면에 적어 둔 반응
   function stageBubble(line) {
@@ -300,7 +324,10 @@
     var st = WD.STAGES[progress.run.scene];
     if (!st) return;
     var who = line.who, text = fill(line.text || '');
-    if (who && who !== 'narr' && who !== 'sys' && who !== 'me') window.PrivacyMap.bubble(who, spokenDevice ? text : '📱…', !spokenDevice);
+    if (who && who !== 'narr' && who !== 'sys' && who !== 'me') {
+      window.PrivacyMap.bubble(who, spokenDevice ? text : '📱…', !spokenDevice);
+      if (!line.talk) chime();
+    }
     (st.bubbles || []).forEach(function (b) { if (text.indexOf(b.on) >= 0) window.PrivacyMap.bubble(b.who, b.text); });
   }
   // 그 자리 대화(장소 장면)는 포켓몬식 대화창으로 한 줄씩
@@ -311,7 +338,7 @@
       var ch = story.characters[who] || { name: who };
       return { who: who, name: who === 'me' ? player.nickname + ' (나)' : ch.name, text: fill(l.text), line: l };
     });
-    return window.PrivacyTalk.open(items, { instant: settings.speed === 'instant', onLine: function (it) { stageBubble(it.line); } });
+    return window.PrivacyTalk.open(items, { instant: settings.speed === 'instant', onLine: function (it) { stageBubble(Object.assign({ talk: true }, it.line)); } });
   }
   function reactionLines(run, scene) {
     var c = (scene.choices || []).filter(function (x) { return x.id === run.reaction; })[0];
@@ -784,6 +811,7 @@
   function syncMenu() {
     Array.prototype.forEach.call(document.querySelectorAll('input[name=speed]'), function (r) { r.checked = r.value === settings.speed; });
     $('opt-motion').checked = settings.reduceMotion;
+    $('opt-sound').checked = settings.sound;
   }
 
   function startNew() {
@@ -834,6 +862,7 @@
       r.addEventListener('change', function () { settings.speed = r.value; saveSettings(); });
     });
     $('opt-motion').addEventListener('change', function () { settings.reduceMotion = $('opt-motion').checked; applySettings(); saveSettings(); });
+    $('opt-sound').addEventListener('change', function () { settings.sound = $('opt-sound').checked; saveSettings(); if (settings.sound) chime(true); });
     $('btn-menu-home').addEventListener('click', function () { $('menu').hidden = true; renderStart(); });
     $('btn-menu-restart').addEventListener('click', function () {
       $('menu').hidden = true;
