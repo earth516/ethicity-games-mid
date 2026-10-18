@@ -10,6 +10,10 @@
   var WD = window.PRIVACY_WORLD;
   var STEP_MS = 150;
   var SPRITE_DIR = 'assets/sprites/';
+  var questIcon = null;
+  var questImage = new Image();
+  questImage.onload = function () { questIcon = questImage; };
+  questImage.src = 'assets/icons/quest.png';
   var ROW = { down: 0, left: 1, right: 2, up: 3 };
   var KEY_DIR = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right', W: 'up', S: 'down', A: 'left', D: 'right' };
   var TILE_COLOR = {
@@ -17,7 +21,7 @@
     y: '#ECDDB4', f: '#A9D48C', T: '#A9D48C', w: '#7FC3E4', H: '#C98F6B', o: '#7A4E2E', r: '#E9D4A3', x: '#7A4E2E'
   };
   var CHAR_COLOR = { me: '#0F766E', hayun: '#4E6FC9', dohyun: '#D06A2E', seoa: '#B04F8C', minjun: '#3F7F5C', teacher: '#6E6150', friend: '#7B808A' };
-  var TINT = { day: null, evening: 'rgba(255,140,60,0.13)', night: 'rgba(25,35,90,0.30)' };
+  var TINT = { day: null, evening: 'rgba(255,181,100,0.08)', night: 'rgba(41,63,118,0.18)' };
 
   var o = null;                 // init 옵션
   var canvas, ctx, wrap;
@@ -29,6 +33,11 @@
   var bubble = null, T = 40, viewW = 0, viewH = 0, cam = { x: 0, y: 0 }, dpr = 1;
   var sprites = {}, lastArea = '', lastLook = null;
   var srcTile = 48; // 스프라이트 원본 한 칸(px). 시트를 읽으면 자동으로 바뀐다
+  // 건물은 반복 벽 타일 대신 하나의 외관을 사용한다. 충돌/문 좌표는 world.js 소유.
+  var houseExterior = null;
+  var houseImage = new Image();
+  houseImage.onload = function () { houseExterior = window.PrivacyPalette.image(houseImage, false); };
+  houseImage.src = SPRITE_DIR + 'house-exterior.png';
 
   /* ── 타일·가구 아틀라스(assets/sprites/tiles.png + tiles.json) ──
    * tiles.json을 읽지 못하는 환경(file:// 등)에선 아래 내장 좌표를 쓴다(납품 v2 기준).
@@ -38,7 +47,7 @@
     if (ATLAS.img !== null) return;
     ATLAS.img = false;
     var im = new Image();
-    im.onload = function () { ATLAS.img = im; };
+    im.onload = function () { ATLAS.img = window.PrivacyPalette.image(im, false); };
     im.src = SPRITE_DIR + 'tiles.png';
     if (window.fetch && location.protocol !== 'file:') {
       fetch(SPRITE_DIR + 'tiles.json').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
@@ -85,7 +94,7 @@
     sprites[key] = null;
     var im = new Image();
     im.onload = function () {
-      sprites[key] = im;
+      sprites[key] = window.PrivacyPalette.image(im, true);
       // 시트 크기에서 원본 칸 크기를 알아낸다(가로 4프레임): 32×48이든 48×72든 그대로 맞춤
       if (key !== 'minjun_sleep' && im.naturalWidth % 4 === 0) {
         var w = im.naturalWidth / 4;
@@ -366,12 +375,21 @@
       var sx = x * T - cam.x, sy = y * T - cam.y;
       if (inside && !WD.indoor(x, y)) { ctx.fillStyle = '#1F2A29'; ctx.fillRect(sx, sy, T + 1, T + 1); continue; }
       var ch = tileAt(x, y);
+      if (!inside && houseExterior && (ch === 'H' || ch === 'o')) {
+        if (!blit('floor_grass', x, y)) drawTile('g', sx, sy);
+        continue;
+      }
       if (!art) { drawTile(ch, sx, sy); continue; }
       var base = ch === '#' ? (WD.indoor(x, y) ? 'wall_room' : 'wall_school') : ch === 'd' ? (x === 22 ? 'floor_dirt' : 'door_school') : FLOOR[ch];
       blit(base || 'floor_grass', x, y);
       if (ch === 'T') list.push({ y: y, fn: (function (xx, yy) { return function () { blit('tree', xx, yy); }; })(x, y) });
       if (ch === 'f') list.push({ y: y, fn: (function (xx, yy) { return function () { blit('fence', xx, yy); }; })(x, y) });
       if (ch === 'd' && x === 22 && y === 17) list.push({ y: y, fn: function () { blit('gate', 22, 17); } });
+    }
+    if (!inside && houseExterior) {
+      list.push({ y: 16, fn: function () {
+        ctx.drawImage(houseExterior, Math.round(41 * T - cam.x), Math.round(13 * T - cam.y), 5 * T, 5 * T);
+      } });
     }
     WD.OBJECTS.forEach(function (ob) {
       if (WD.indoor(ob.x, ob.y) !== inside) return;
@@ -478,17 +496,27 @@
     var b = targetBox();
     if (WD.indoor(b.x, b.y) && !WD.indoor(me.x, me.y)) b = { x: WD.INDOOR.entrance.x, y: WD.INDOOR.entrance.y, w: 1, h: 1 };
     var bob = o.reduceMotion() ? 0 : Math.sin(t / 220) * T * 0.08;
-    var mx = (b.x + b.w / 2) * T - cam.x, my = b.y * T - cam.y - T * (b.who ? 0.55 : 0.2) + bob;
+    var mx = (b.x + b.w / 2) * T - cam.x, my = b.y * T - cam.y - T * (b.who ? 0.95 : 0.35) + bob;
     var off = mx < 8 || mx > viewW - 8 || my < 8 || my > viewH - 8;
     if (off) { // 화면 밖이면 가장자리에 방향 표시
       mx = Math.max(22, Math.min(viewW - 22, mx));
       my = Math.max(22, Math.min(viewH - 22, my));
     }
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath(); ctx.arc(mx, my, T * 0.3, 0, 7); ctx.fill();
-    ctx.strokeStyle = '#B91C1C'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = '#B91C1C'; ctx.font = 'bold ' + Math.round(T * 0.4) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('!', mx, my + 1);
+    var iconSize = Math.max(32, Math.round(T * 0.8));
+    mx = Math.max(iconSize / 2 + 4, Math.min(viewW - iconSize / 2 - 4, mx));
+    my = Math.max(iconSize / 2 + 4, Math.min(viewH - iconSize / 2 - 4, my));
+    if (questIcon) {
+      // 생성 원본의 투명 여백을 제외한 알파 경계(>16). 원본 PNG는 보존한다.
+      var iw = Math.round(iconSize * 630 / 669);
+      ctx.drawImage(questIcon, 313, 293, 630, 669, Math.round(mx - iw / 2), Math.round(my - iconSize / 2), iw, iconSize);
+    } else {
+      ctx.fillStyle = '#FFF6DB';
+      roundRect(mx - iconSize / 2, my - iconSize / 2, iconSize, iconSize, 4); ctx.fill();
+      ctx.strokeStyle = '#17334C'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = '#9B6100'; ctx.font = 'bold ' + Math.round(T * 0.4) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('!', mx, my + 1);
+    }
+    ctx.fillStyle = '#17334C';
     if (off) {
       var ang = Math.atan2((b.y + b.h / 2) * T - cam.y - my, (b.x + b.w / 2) * T - cam.x - mx);
       ctx.save(); ctx.translate(mx + Math.cos(ang) * T * 0.45, my + Math.sin(ang) * T * 0.45); ctx.rotate(ang);
