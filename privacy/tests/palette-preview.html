@@ -1,0 +1,10 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>색감 비교</title>
+<style>body{margin:24px;background:#f7fafa;color:#16201f;font:17px/1.7 sans-serif}h1{font-size:24px}section{margin:32px 0} .pair{display:flex;gap:24px;flex-wrap:wrap}figure{margin:0;max-width:100%;background:#eaf2e5;padding:12px}canvas{max-width:100%;height:auto;image-rendering:pixelated}figcaption{font-weight:bold}</style>
+<h1>기존 색감 / 산뜻한 색감</h1><p>같은 그림·같은 프레임입니다. 캐릭터 피부와 검은 윤곽은 보존하고, 바닥과 가구의 중간 밝기를 높였습니다.</p>
+<main id="samples"></main><script src="../js/palette.js"></script><script>
+for (const name of ['tiles','char_player_m','char_player_f','char_hayun','char_seoa','char_dohyun','char_minjun','char_teacher','char_friend']) {
+  const section=document.createElement('section'); const title=document.createElement('h2');title.textContent=name;section.append(title);
+  const pair=document.createElement('div');pair.className='pair';section.append(pair);document.getElementById('samples').append(section);
+  const img=new Image();img.onload=()=>{[false,true].forEach(after=>{const figure=document.createElement('figure');const cap=document.createElement('figcaption');cap.textContent=after?'보정 후':'원본';figure.append(cap);const canvas=document.createElement('canvas');canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;canvas.getContext('2d').drawImage(after?PrivacyPalette.image(img,name!=='tiles'):img,0,0);figure.append(canvas);pair.append(figure);});};img.src='../assets/sprites/'+name+'.png';
+}
+</script></html>
