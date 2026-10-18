@@ -300,8 +300,14 @@
       if (part) node.appendChild(document.createTextNode(part));
     });
   }
+  // 대화 초상화(Codex v3를 세로 512px로 줄인 사본). 기본 표정뿐이라 맵에서 말 걸기·오프닝에만 쓴다
+  var PORTRAIT = { hayun: 1, seoa: 1, dohyun: 1, minjun: 1, teacher: 1, me: 1 };
+  function portraitFor(who) {
+    if (!PORTRAIT[who]) return null;
+    return 'assets/portraits/' + (who === 'me' ? 'player_' + o.playerLook() : who) + '.png';
+  }
   function talk(lines) {
-    return window.PrivacyTalk.open(lines, { instant: o.instant(), onLine: function (l) {
+    return window.PrivacyTalk.open(lines, { instant: o.instant(), portrait: portraitFor, onLine: function (l) {
       var c = cast.filter(function (k) { return k.who === l.who; })[0];
       if (c) setBubble(c, l.text);
     } });

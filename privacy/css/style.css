@@ -286,6 +286,13 @@ body[data-view="v-chapter"] .hud { display: none; }
   background: rgba(255, 255, 255, .8); max-width: calc(100% - 16px);
 }
 
+/* 대화 초상화: 대화창 위 왼쪽에 반신으로 선다(대화창이 닫히면 함께 사라짐) */
+.talk-portrait {
+  position: absolute; left: 20px; z-index: 4; pointer-events: none;
+  height: clamp(150px, 36%, 300px); width: auto; object-fit: contain;
+  filter: drop-shadow(0 2px 0 rgba(22, 32, 31, .25));
+}
+@container (max-height: 560px) { .talk-portrait { height: 26%; } }
 /* 포켓몬식 대화창 */
 .talk {
   position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 5;

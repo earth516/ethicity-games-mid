@@ -368,6 +368,43 @@
       ok($$('.ico-quest').every(function (im) { return /quest\.png/.test(getComputedStyle(im).backgroundImage) && im.getAttribute('role') === 'img' && !!im.getAttribute('aria-label'); }), 'quest.png 사용·대체 글자 있음');
     }
 
+    else if (s === 'portrait') {
+      function pv() { var p = $('#talk-portrait'); return p && !p.hidden && getComputedStyle(p).display !== 'none' ? p.getAttribute('src') : null; }
+      $('#btn-new').click(); await wait(30);
+      PrivacyApp.setSpeed('normal'); // 한 줄씩(한꺼번에 모드는 초상화 없이)
+      $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); await wait(50);
+      ok(/portraits\/hayun\.png$/.test(pv() || ''), '오프닝 소개: 하윤 초상화 ' + pv());
+      var pr = $('#talk-portrait').getBoundingClientRect(), tr = $('#talk').getBoundingClientRect(), mc = $('#v-map .map-controls').getBoundingClientRect();
+      ok(pr.bottom <= tr.top + 16 && pr.bottom <= mc.top, '초상화는 대화창 위에 서고 아래 버튼을 가리지 않음');
+      var sawMinjun = false, gg = 0;
+      while (!$('#talk').hidden && gg++ < 20) { if (/minjun\.png$/.test(pv() || '')) sawMinjun = true; $('#btn-talk-next').click(); await wait(30); }
+      ok(sawMinjun, '민준이 말하는 줄에선 민준 초상화');
+      ok(pv() === null, '대사가 끝나면 초상화도 사라짐');
+      PrivacyApp.setSpeed('instant');
+      await play(R.A, { upto: 0 });
+      ok(view() === 'v-game' && pv() === null, '폰(단톡) 장면에선 초상화 없음');
+      await play(R.A, { upto: 1, stopAtMap: true });
+      PrivacyApp.setSpeed('normal');
+      var pd = PrivacyMap.debug.tileToClient(8, 2); // 도현
+      $('#m-canvas').dispatchEvent(new PointerEvent('pointerdown', { clientX: pd.x, clientY: pd.y, bubbles: true }));
+      var gt = 0; while ($('#talk').hidden && gt++ < 300) await wait(20);
+      ok(/portraits\/dohyun\.png$/.test(pv() || ''), '맵에서 도현에게 말 걸기: 도현 초상화');
+      key(' '); await wait(30);
+      // 사물 조사(해설)엔 초상화 없음: 교탁(5,2) 옆으로 가서 조사
+      var rt = PrivacyMap.debug.routeTo(5, 3) || [];
+      for (var k = 0; k < rt.length; k++) { key(ARROW[rt[k]]); key(ARROW[rt[k]], 'keyup'); var g = 0; await wait(16); while (PrivacyMap.debug.me().moving && g++ < 100) await wait(16); }
+      key('ArrowUp'); key('ArrowUp', 'keyup'); await wait(200); key(' '); await wait(30);
+      ok(!$('#talk').hidden && pv() === null, '사물 조사(해설)엔 초상화 없음');
+      key(' '); await wait(30);
+      // 장소 장면(잠든 민준이)은 기본 표정 초상화를 띄우지 않음
+      PrivacyApp.setSpeed('instant');
+      $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); await wait(); await passTalk(); await wait(50);
+      await play(R.A, { from: 1, upto: 3 });
+      PrivacyApp.setSpeed('normal');
+      $$('#g-dock .choice')[0].click(); await wait(50);
+      ok(PrivacyApp.state().scene === 'c1_e2_a' && pv() === null, '장소 장면 대화창엔 초상화 없음');
+    }
+
     else if (s === 'smooth') {
       $('#btn-new').click();
       await play(R.A, { upto: 1, stopAtMap: true });
@@ -763,6 +800,7 @@
         await wait(300);
         return;
       }
+      if (s === 'shot-portrait') { $('#btn-new').click(); await wait(30); PrivacyApp.setSpeed('normal'); $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); await wait(400); return; }
       if (s === 'shot-opening') { $('#btn-new').click(); await wait(500); return; }
       if (s === 'shot-talk') { $('#btn-new').click(); await play(R.A, { upto: 1, stopAtMap: true }); var pd = PrivacyMap.debug.tileToClient(8, 2); $('#m-canvas').dispatchEvent(new PointerEvent('pointerdown', { clientX: pd.x, clientY: pd.y, bubbles: true })); await wait(1500); return; }
       if (s === 'shot-hood' || s === 'shot-gate' || s === 'shot-south' || s === 'shot-edge' || s === 'shot-front') { // 주택가·교문 화면 확인용: 그 자리까지 걸어감
