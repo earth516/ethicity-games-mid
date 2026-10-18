@@ -122,7 +122,11 @@
 
   var SPAWNS = {
     classroom: { x: 8, y: 6, dir: 'up' },
-    gate: { x: 21, y: 16, dir: 'left' }
+    gate: { x: 21, y: 16, dir: 'left' },
+    home: { x: 32, y: 4, dir: 'down' },   // 내 방 침대 옆(아침에 일어난 자리)
+    road: { x: 33, y: 16, dir: 'right' }, // 마을 길 가운데
+    hall: { x: 10, y: 9, dir: 'down' },   // 복도, 현관 앞
+    yard: { x: 14, y: 20, dir: 'right' }  // 운동장 축제 부스 앞
   };
 
   /* ── 사건 트리거 ─────────────────── */
@@ -133,25 +137,42 @@
     ].filter(function (c) { return !extra || extra.indexOf(c.who) < 0; });
   };
   var TRIGGERS = {
-    c1_e1_a: { time: 'D-4 · 방과 후', mission: '교실에서 하윤이에게 말 걸기', target: { npc: 'hayun' }, spawn: 'classroom', tint: 'day',
-      cast: schoolDay(), greet: '하윤: 정산은 이따 저녁에 단톡방에 올릴게! 확인해 줘~' },
+    // 등교 오프닝: 내 방에서 일어나 교실까지 걷는다. 길에서 만난 친구는 castLines로 자기소개, 교실에서 하윤이가 반 친구를 소개한다.
+    pro_1: { time: 'D-4 · 아침', mission: '학교 가기 — 2학년 3반 교실까지', target: { npc: 'hayun' }, spawn: 'home', tint: 'day',
+      hint: '방향키·WASD 또는 화면을 눌러 걸어요',
+      cast: [{ who: 'hayun', x: 5, y: 4, dir: 'down' }, { who: 'minjun', x: 9, y: 6, dir: 'left' },
+        { who: 'dohyun', x: 20, y: 17, dir: 'right' }, { who: 'seoa', x: 14, y: 8, dir: 'down' }],
+      castLines: {
+        dohyun: '어, 왔냐? 이번 축제 때 사진 진짜 많이 찍자 ㅋㅋ 다 올려야지!',
+        seoa: '안녕… 나 꾸미기 담당이야. 반짝이 스티커 잔뜩 사 왔어.'
+      },
+      greet: [
+        { who: 'hayun', text: '왔구나! 오늘 방과 후부터 축제 준비 시작이야.' },
+        { who: 'hayun', text: '나는 정산이랑 역할표 담당. 공지는 단톡방에 올릴 테니까 꼭 확인해 줘.' },
+        { who: 'hayun', text: '여기 민준이는 소품 담당이야. 손재주가 진짜 좋아.' },
+        { who: 'minjun', text: '…안녕. 소품은 거의 다 돼 가.' },
+        { who: 'hayun', text: '오는 길에 도현이랑 서아도 봤지? 우리 반 다 같이 잘해 보자!' }
+      ] },
+    c1_e1_a: { time: 'D-4 · 하교', mission: '집에 가기 — 마을 길 끝 우리 집, 내 방 침대', target: { obj: 'bed' }, spawn: 'classroom', tint: 'evening',
+      cast: [{ who: 'hayun', x: 5, y: 4, dir: 'down' }, { who: 'dohyun', x: 8, y: 2, dir: 'left' }],
+      greet: '저녁을 먹고 침대에 눕자 휴대폰이 울렸다.' },
     c1_e2_a: { time: 'D-3 · 방과 후', mission: '교실에서 엎드려 자는 민준이 살펴보기', target: { npc: 'minjun' }, spawn: 'gate', tint: 'day',
       cast: [{ who: 'minjun', x: 7, y: 6, dir: 'up', pose: 'sleep' }, { who: 'dohyun', x: 6, y: 6, dir: 'right' },
         { who: 'hayun', x: 6, y: 1, dir: 'down' }, { who: 'seoa', x: 2, y: 1, dir: 'down' }] },
-    c1_e3_a: { time: 'D-2 · 하교 시간', mission: '집에 가서 쉬기 — 교문을 지나 마을 길 끝 우리 집으로', target: { obj: 'bed' }, tint: 'evening',
+    c1_e3_a: { time: 'D-2 · 하교 시간', mission: '집에 가서 쉬기 — 교문을 지나 마을 길 끝 우리 집으로', target: { obj: 'bed' }, spawn: 'classroom', tint: 'evening',
       cast: [{ who: 'hayun', x: 15, y: 8, dir: 'down' }, { who: 'dohyun', x: 4, y: 13, dir: 'down' }, { who: 'minjun', x: 14, y: 19, dir: 'down' }],
       enterLine: '하루 종일 부스를 꾸몄더니 피곤하다. 침대에 눕자 휴대폰이 울렸다.' },
     c2_e4_a: { time: 'D-1 · 오후', mission: '매점 앞에서 손짓하는 도현이에게 가기', target: { npc: 'dohyun' }, spawn: 'gate', tint: 'day',
       cast: [{ who: 'dohyun', x: 4, y: 13, dir: 'right' }, { who: 'seoa', x: 14, y: 19, dir: 'up' },
         { who: 'minjun', x: 16, y: 19, dir: 'up' }, { who: 'hayun', x: 6, y: 9, dir: 'down' }] },
-    c2_e5_a: { time: 'D-1 · 저녁', mission: '집에 가서 부스 안내문 쓰기 — 내 방 컴퓨터', target: { obj: 'mypc' }, tint: 'night',
+    c2_e5_a: { time: 'D-1 · 저녁', mission: '집에 가서 부스 안내문 쓰기 — 내 방 컴퓨터', target: { obj: 'mypc' }, spawn: 'road', tint: 'night',
       cast: [{ who: 'seoa', x: 14, y: 19, dir: 'up' }, { who: 'minjun', x: 16, y: 19, dir: 'up' }] },
     c2_e6_a: { time: '축제 당일 · 아침', mission: '도서관 공용 PC 3번에서 안내문 출력하기', target: { obj: 'pc3' }, spawn: 'gate', tint: 'day',
       cast: [{ who: 'friend', x: 18, y: 5, dir: 'left' }, { who: 'hayun', x: 13, y: 19, dir: 'up' }, { who: 'seoa', x: 15, y: 19, dir: 'up' }] },
-    c3_e7_a: { time: '축제 당일 · 오후', mission: '운동장 부스 뒤 도현이네에게 가기', target: { npc: 'dohyun' }, tint: 'day',
+    c3_e7_a: { time: '축제 당일 · 오후', mission: '운동장 부스 뒤 도현이네에게 가기', target: { npc: 'dohyun' }, spawn: 'hall', tint: 'day',
       cast: [{ who: 'dohyun', x: 17, y: 20, dir: 'left' }, { who: 'friend', x: 18, y: 20, dir: 'left' },
         { who: 'minjun', x: 13, y: 19, dir: 'down' }, { who: 'hayun', x: 15, y: 19, dir: 'down' }, { who: 'seoa', x: 20, y: 19, dir: 'left' }] },
-    c3_e8_a: { time: '축제 당일 · 저녁', mission: '집에 가서 쉬기 — 내 방 컴퓨터', target: { obj: 'mypc' }, tint: 'evening',
+    c3_e8_a: { time: '축제 당일 · 저녁', mission: '집에 가서 쉬기 — 내 방 컴퓨터', target: { obj: 'mypc' }, spawn: 'yard', tint: 'evening',
       cast: [{ who: 'dohyun', x: 18, y: 19, dir: 'down' }, { who: 'teacher', x: 11, y: 12, dir: 'down' }] },
     c3_e9_a: { time: '축제 다음 날 · 오전', mission: '교실에서 하윤이에게 말 걸기', target: { npc: 'hayun' }, spawn: 'gate', tint: 'day',
       cast: schoolDay() },

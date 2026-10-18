@@ -121,6 +121,8 @@ function countPaths(s, depth) {
   return n;
 }
 const totalPaths = countPaths(E.createState(story), 0);
+// 무대·맵 개편은 이야기 분기를 바꾸지 않는다
+if (totalPaths !== 294840000) err('완주 경로 수가 바뀜: ' + totalPaths);
 
 // ── 4. 무작위 완주 표본(실제 상태 그대로) ──────
 const seenScene = new Set(), seenChoice = new Set(), seenLine = new Set(), seenOutcome = new Set();
@@ -193,7 +195,7 @@ for (const [eid, ev] of Object.entries(story.events)) ev.outcomes.forEach((o) =>
 for (const e of story.endings) if (!endingCount[e.code] && routeResult[e.code]?.s.ending !== e.code) err('도달 불가 엔딩: ' + e.code);
 
 // ── 6b. 맵 검사 ──────────────────────────
-const TRIGGER_ORDER = ['c1_e1_a', 'c1_e2_a', 'c1_e3_a', 'c2_e4_a', 'c2_e5_a', 'c2_e6_a', 'c3_e7_a', 'c3_e8_a', 'c3_e9_a', 'ep_1'];
+const TRIGGER_ORDER = ['pro_1', 'c1_e1_a', 'c1_e2_a', 'c1_e3_a', 'c2_e4_a', 'c2_e5_a', 'c2_e6_a', 'c3_e7_a', 'c3_e8_a', 'c3_e9_a', 'ep_1'];
 for (const id of Object.keys(WORLD.triggers)) if (!story.scenes[id]) err('맵 트리거가 없는 장면을 가리킴: ' + id);
 for (const id of TRIGGER_ORDER) if (!WORLD.triggers[id]) err('맵 트리거 누락: ' + id);
 // 다른 사건(또는 장 시작)에서 넘어오는 장면 = 사건 입구 → 반드시 트리거가 있어야 걸어서 들어간다
@@ -201,6 +203,15 @@ for (const [id, sc] of Object.entries(story.scenes)) {
   for (const t of succ[id]) { const to = story.scenes[t]; if (to.event !== sc.event && to.event && !WORLD.triggers[t]) err('사건 입구인데 맵 트리거 없음: ' + t); }
 }
 for (const n of Object.values(story.chapters)) if (!WORLD.triggers[n.start]) err('장 시작 장면에 맵 트리거 없음: ' + n.start);
+// 등교 오프닝: 시작 장면도 걸어서 들어간다
+if (!WORLD.triggers[story.start]) err('시작 장면에 트리거 없음(등교 오프닝): ' + story.start);
+{ const s0 = E.createState(story); if (s0.screen !== 'map' || s0.mapTarget !== story.start) err('createState가 오프닝 맵으로 시작하지 않음'); }
+// 장면 무대가 플레이어를 옮기므로 모든 걷기 구간은 시작 위치를 명시한다
+for (const [id, t] of Object.entries(WORLD.triggers)) if (!t.spawn || !WORLD.SPAWNS[t.spawn]) err('트리거 spawn 없음/잘못됨: ' + id);
+for (const [id, t] of Object.entries(WORLD.triggers)) {
+  if (Array.isArray(t.greet)) t.greet.forEach((g, i) => { if (!g.text || (g.who && !story.characters[g.who])) err(id + ': greet ' + i + ' 형식 오류'); });
+  for (const w of Object.keys(t.castLines || {})) if (!t.cast.some((c) => c.who === w)) err(id + ': castLines 인물이 cast에 없음 ' + w);
+}
 let prevEnd = null;
 const walkLengths = [];
 for (const id of TRIGGER_ORDER) {
@@ -238,7 +249,7 @@ for (const id of TRIGGER_ORDER) {
   let cur = { x: start.x, y: start.y }; for (const d of path) cur = WORLD.stepFrom(cur.x, cur.y, d, blocked);
   prevEnd = cur;
 }
-if (WORLD.triggers.c1_e3_a && !WORLD.triggers.c1_e3_a.spawn) {
+{
   // 집 사건은 교문을 지나 걸어야만 닿는지: 교문 칸을 막으면 길이 없어야 함
   const gateBlocked = { '22,16': true, '22,17': true };
   const bed = WORLD.object('bed');

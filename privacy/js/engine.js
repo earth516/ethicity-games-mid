@@ -69,10 +69,12 @@
   function createState(story) {
     var trust = {};
     story.trustable.forEach(function (k) { trust[k] = 0; });
+    // 시작 장면에도 트리거가 있으면(등교 오프닝) 걸어서 들어간다
+    var walkIn = !!(story.triggers && story.triggers[story.start]);
     return {
       v: 1,
-      screen: 'scene',          // scene | map | chapter | ending
-      mapTarget: null,          // map 화면일 때 도착하면 열릴 장면 id
+      screen: walkIn ? 'map' : 'scene', // scene | map | chapter | ending
+      mapTarget: walkIn ? story.start : null, // map 화면일 때 도착하면 열릴 장면 id
       scene: story.start,
       chapter: 0,
       nextChapter: null,
@@ -80,7 +82,7 @@
       stats: emptyStats(),
       trust: trust,
       flags: {},
-      visited: [story.start],
+      visited: walkIn ? [] : [story.start],
       history: [],              // [{ scene, choice, snap }]
       chapterMarks: { 0: { stats: emptyStats(), trust: clone(trust) } },
       ending: null

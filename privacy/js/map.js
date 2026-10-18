@@ -145,7 +145,7 @@
     held = []; path = null; actOnArrive = false; busy = false; bubble = null;
     lastArea = '';
     updateArea();
-    say('');
+    say(trig.hint || '');
     active = true;
     resize();
     if (newDay) dayCard(trig.time);
@@ -185,6 +185,7 @@
     me.dir = dir;
     var d = WD.DIRS[dir], nx = me.x + d[0], ny = me.y + d[1];
     if (!WD.walkable(nx, ny, blocked)) return false;
+    if (trig.hint && $('m-say').textContent === trig.hint) say(''); // 첫 걸음을 떼면 안내는 사라진다
     me.moving = true; me.t = 0;
     me.from = { x: me.x, y: me.y }; me.to = { x: nx, y: ny };
     me.door = WD.DOORS[nx + ',' + ny] || null;
@@ -237,7 +238,8 @@
       me.dir = t.dir;
       busy = true;
       say('');
-      var greet = trig.greet ? [personLine(t.type === 'npc' ? t.c.who : null, trig.greet)] : [];
+      var who0 = t.type === 'npc' ? t.c.who : null;
+      var greet = [].concat(trig.greet || []).map(function (g) { return typeof g === 'string' ? personLine(who0, g) : personLine(g.who || null, g.text); });
       talk(greet).then(function () { busy = false; if (active) o.onEnter(); });
       return;
     }
@@ -247,7 +249,8 @@
     if (n.type === 'npc') {
       var lines = WD.idle[n.c.who] || [{ text: '…' }];
       var hit = lines.filter(function (l) { return o.evalCond(l.if); })[0];
-      talk([personLine(n.c.who, hit.text)]);
+      var own = trig.castLines && trig.castLines[n.c.who]; // 이 걷기 구간에서만 하는 말(오프닝 자기소개 등)
+      talk([personLine(n.c.who, own || hit.text)]);
     } else {
       talk([{ who: null, name: null, text: n.ob.look || n.ob.name }]);
     }
@@ -258,7 +261,13 @@
     if (m && o.story.characters[m[1]]) { who = m[1]; text = m[2]; }
     return { who: who, name: who ? o.story.characters[who].name : null, text: o.fill(text) };
   }
-  function talk(lines) { return window.PrivacyTalk.open(lines, { instant: o.instant() }); }
+  // 대화창에 줄이 뜰 때 말하는 사람이 맵에 있으면 머리 위에도 짧게
+  function talk(lines) {
+    return window.PrivacyTalk.open(lines, { instant: o.instant(), onLine: function (l) {
+      var c = cast.filter(function (k) { return k.who === l.who; })[0];
+      bubble = c ? { text: l.text.length > 12 ? l.text.slice(0, 12) + '…' : l.text, who: c, until: performance.now() + 3200 } : null;
+    } });
+  }
   // 짧은 안내(문 드나들기·길 안내)는 대화창 대신 무대 위 한 줄로
   function say(text, speaker) {
     bubble = text && speaker ? { text: text, who: speaker, until: performance.now() + 3200 } : null;

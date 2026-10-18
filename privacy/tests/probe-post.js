@@ -63,7 +63,7 @@
   }
 
   // 대화창이 열려 있으면 ▼를 눌러 끝까지 넘긴다
-  async function passTalk() { var g = 0; while ($('#talk') && !$('#talk').hidden && g++ < 60) { $('#btn-talk-next').click(); await wait(20); } }
+  async function passTalk(o) { var g = 0; while ($('#talk') && !$('#talk').hidden && g++ < 60) { if (o) o.talkLines = (o.talkLines || 0) + $$('#talk .talk-text p').length; $('#btn-talk-next').click(); await wait(20); } }
   function key(k, type) { document.dispatchEvent(new KeyboardEvent(type || 'keydown', { key: k, bubbles: true })); }
   var ARROW = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
   async function walkToTarget(opts) {
@@ -79,7 +79,7 @@
     }
     if (!M.nearTarget()) fail.push('맵: 걸어서 대상 옆에 도착하지 못함 ' + JSON.stringify(M.me()));
     key(' ');
-    var g2 = 0; while (view() === 'v-map' && g2++ < 200) { await passTalk(); await wait(20); }
+    var g2 = 0; while (view() === 'v-map' && g2++ < 200) { await passTalk(opts); await wait(20); }
   }
   function checkOthersKept() {
     var same = Object.keys(P.OTHER).every(function (k) { return ls(k) === P.OTHER[k]; });
@@ -143,11 +143,14 @@
       $('#btn-new').click();
       await play(R.A, { upto: 1, stopAtMap: true });
       ok(view() === 'v-map', '첫 사건 전에 맵 화면');
-      ok(/하윤/.test($('#m-mission').textContent), '지금 할 일 표시: ' + $('#m-mission').textContent);
+      ok(/집/.test($('#m-mission').textContent), '지금 할 일 표시(하교): ' + $('#m-mission').textContent);
       var pt = PrivacyMap.debug.tileToClient(5, 4); // 하윤 자리
       $('#m-canvas').dispatchEvent(new PointerEvent('pointerdown', { clientX: pt.x, clientY: pt.y, bubbles: true }));
-      var g = 0; while (view() === 'v-map' && g++ < 300) { await passTalk(); await wait(20); }
-      ok(view() === 'v-game' && PrivacyApp.state().scene === 'c1_e1_a', '하윤을 누르면 걸어가서 정산 장면 시작 ' + JSON.stringify([pt, PrivacyMap.debug.me(), $('#m-say').textContent, $('#m-canvas').getBoundingClientRect().width]));
+      var g = 0; while ($('#talk').hidden && g++ < 300) await wait(20);
+      ok(!$('#talk').hidden && /하윤/.test($('#talk .talk-name').textContent), '하윤을 누르면 걸어가서 말 걸기 ' + JSON.stringify([pt, PrivacyMap.debug.me()]));
+      await passTalk();
+      $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); await wait(); await passTalk(); await wait();
+      ok(view() === 'v-game' && PrivacyApp.state().scene === 'c1_e1_a', '침대에 가면 정산 장면 시작');
       // 맵에서 되돌리기: 다음 맵으로 간 뒤 되돌리면 이전 장면 선택 전으로
       await play(R.A, { from: 1, upto: 3, stopAtMap: true });
       ok(view() === 'v-map' && PrivacyApp.state().screen === 'map', '두 번째 사건 전 맵');
@@ -175,6 +178,46 @@
       ok(!!$('#talk .talk-name') && /도현/.test($('#talk .talk-name').textContent), '대화창 이름 탭');
       key(' '); await wait(30);
       ok($('#talk').hidden && view() === 'v-map', 'Space로 대화창 닫힘, 맵 그대로');
+    }
+
+    else if (s === 'opening') {
+      $('#btn-new').click(); await wait(30);
+      var st0 = PrivacyApp.state();
+      ok(view() === 'v-map' && st0.screen === 'map' && st0.mapTarget === 'pro_1', '시작하면 바로 맵(등교)');
+      ok(/내 방/.test($('#m-area').textContent), '내 방에서 시작: ' + $('#m-area').textContent);
+      ok(/방향키/.test($('#m-say').textContent), '첫 걸음 안내: ' + $('#m-say').textContent);
+      ok(/교실/.test($('#m-mission').textContent), '지금 할 일: ' + $('#m-mission').textContent);
+      var ow = { walk: true, areas: [] };
+      await walkToTarget(ow);
+      var oseq = ow.areas.join('>');
+      ok(/우리 집 앞.*마을 길.*교문.*복도.*2학년 3반 교실/.test(oseq), '집→마을 길→교문→복도→교실: ' + oseq);
+      ok($('#m-say').textContent.indexOf('방향키') < 0, '걷기 시작하면 첫 안내가 사라짐');
+      ok(ow.talkLines >= 4, '하윤의 친구 소개 ' + ow.talkLines + '줄');
+      ok(view() === 'v-game' && PrivacyApp.state().scene === 'pro_1', '소개 뒤 pro_1 장면');
+    }
+
+    else if (s === 'resume-old') {
+      var E2 = window.PrivacyEngine, ST = window.PRIVACY_STORY, PK = 'ethicity.privacy.progress.v1';
+      if (P.phase === 0) { // 개편 전 저장 1: 프롤로그 장면에서 바로 시작하던 형태
+        var old = E2.createState(ST); old.screen = 'scene'; old.mapTarget = null; old.visited = ['pro_1'];
+        localStorage.setItem(PK, JSON.stringify({ v: 1, run: old, explored: {}, endingsSeen: [] }));
+        sessionStorage.setItem('probe-phase', '1'); carry(); location.reload(); return;
+      }
+      if (P.phase === 1) {
+        ok(!$('#btn-continue').hidden, '개편 전 저장(프롤로그 장면) → 이어 하기');
+        $('#btn-continue').click(); await wait();
+        ok(view() === 'v-game' && PrivacyApp.state().scene === 'pro_1' && $$('#g-dock .choice').length > 0, 'pro_1 장면에서 그대로 이어짐');
+        // 개편 전 저장 2: 1장 첫 맵, 교실 안 위치(6,4)
+        var m = E2.createState(ST), gg = 0;
+        while (!(m.screen === 'map' && m.mapTarget === 'c1_e1_a') && gg++ < 8) m = m.screen === 'scene' && E2.needsChoice(ST, m) ? E2.choose(ST, m, 'photo') : E2.advance(ST, m);
+        m.history = [];
+        localStorage.setItem(PK, JSON.stringify({ v: 1, run: m, explored: {}, endingsSeen: [], pos: { x: 6, y: 4, dir: 'left', for: 'c1_e1_a' } }));
+        sessionStorage.setItem('probe-phase', '2'); carry(); location.reload(); return;
+      }
+      $('#btn-continue').click(); await wait();
+      var mm = PrivacyMap.debug.me();
+      ok(view() === 'v-map' && PrivacyApp.state().mapTarget === 'c1_e1_a' && mm.x === 6 && mm.y === 4, '개편 전 맵 저장 위치에서 이어짐 ' + JSON.stringify(mm));
+      sessionStorage.removeItem('probe-phase'); sessionStorage.removeItem('probe-carry');
     }
 
     else if (s === 'map-resume') {
