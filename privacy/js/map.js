@@ -352,6 +352,8 @@
     if (window.PrivacyTalk.isOpen()) { window.PrivacyTalk.close(); return; }
     var r = canvas.getBoundingClientRect();
     var tx = Math.floor((e.clientX - r.left + cam.x) / T), ty = Math.floor((e.clientY - r.top + cam.y) / T);
+    var school = window.PrivacySchool;
+    if (school && !school.contains(me.x, me.y) && school.contains(tx, ty)) { tx = 10; ty = 10; }
     var npc = cast.filter(function (c) { return c.x === tx && c.y === ty; })[0];
     var ob = WD.objectAt(tx, ty) || WD.OBJECTS.filter(function (b) { return tx >= b.x && tx < b.x + b.w && ty >= b.y && ty < b.y + b.h; })[0];
     var p;
@@ -407,6 +409,11 @@
     schedule();
   }
   function draw(t) {
+    // Frame the complete bedroom during walking; keep scene-overlay focus unchanged.
+    T = srcTile * Math.max(1, Math.round(viewW / (srcTile * 13)));
+    if (mode === 'walk' && WD.indoor(me.x, me.y)) {
+      T = Math.max(28, Math.min(96, Math.floor(Math.min(viewW / (WD.INDOOR.w + 0.8), (viewH - 160) / (WD.INDOOR.h + 0.8)))));
+    }
     var mapW = WD.W * T, mapH = WD.H * T;
     var fx = focus ? focus.x : 0.5, fy = focus ? focus.y : 0.5;
     // 걷기: 맵 끝에서 멈춤 / 장면: 주인공을 focus 자리에 두려고 맵 밖(폰·선택 상자 뒤)까지 조금 넘어갈 수 있음
@@ -419,24 +426,56 @@
     var x0 = Math.max(0, Math.floor(cam.x / T)), y0 = Math.max(0, Math.floor(cam.y / T));
     var x1 = Math.min(WD.W - 1, Math.ceil((cam.x + viewW) / T)), y1 = Math.min(WD.H - 1, Math.ceil((cam.y + viewH) / T));
     var x, y, inside = WD.indoor(me.x, me.y);
+    var room = window.PrivacyRoom;
+    if (inside && mode === 'walk') {
+      var rb = WD.INDOOR;
+      cam.x = rb.w * T <= viewW ? (rb.x + rb.w / 2) * T - viewW / 2 : Math.max(rb.x * T, Math.min((rb.x + rb.w) * T - viewW, me.fx * T + T / 2 - viewW / 2));
+      cam.y = rb.h * T <= viewH ? (rb.y + rb.h / 2) * T - viewH / 2 : Math.max(rb.y * T, Math.min((rb.y + rb.h) * T - viewH, me.fy * T + T / 2 - viewH / 2));
+      x0 = Math.max(0, Math.floor(cam.x / T)); y0 = Math.max(0, Math.floor(cam.y / T));
+      x1 = Math.min(WD.W - 1, Math.ceil((cam.x + viewW) / T)); y1 = Math.min(WD.H - 1, Math.ceil((cam.y + viewH) / T));
+      ctx.fillStyle = '#dfe7e3'; ctx.fillRect(0, 0, viewW, viewH);
+    }
+    var school = window.PrivacySchool;
+    var schoolCovered = school && !school.contains(me.x, me.y);
     var art = !!ATLAS.img;
     var list = []; // 앞뒤 순서가 필요한 것들: { y: 아래쪽 행, fn }
     var tileAt = function (xx, yy) { return !inside && WD.indoor(xx, yy) ? 'T' : WD.grid[yy][xx]; };
-    // 위로 키 큰 그림(나무 96px)이 화면 위쪽 밖에서 걸쳐 들어오도록 한 줄 더 본다
-    for (y = y0; y <= Math.min(WD.H - 1, y1 + 1); y++) for (x = x0; x <= x1; x++) {
+    // Wider crowns can extend into the viewport from neighboring cells.
+    var outdoor = window.PrivacyOutdoor;
+    for (y = y0; y <= Math.min(WD.H - 1, y1 + 2); y++) for (x = Math.max(0, x0 - 1); x <= Math.min(WD.W - 1, x1 + 1); x++) {
       var sx = x * T - cam.x, sy = y * T - cam.y;
-      if (inside && !WD.indoor(x, y)) { ctx.fillStyle = '#1F2A29'; ctx.fillRect(sx, sy, T + 1, T + 1); continue; }
+      if (inside && !WD.indoor(x, y)) { ctx.fillStyle = '#dfe7e3'; ctx.fillRect(sx, sy, T + 1, T + 1); continue; }
+      if (schoolCovered && school.contains(x, y)) {
+        ctx.fillStyle = '#86a85f'; ctx.fillRect(Math.round(sx), Math.round(sy), T + 1, T + 1); continue;
+      }
       var ch = tileAt(x, y);
-      if (!inside && houseExterior && (ch === 'H' || ch === 'o')) {
-        if (!blit('floor_grass', x, y)) drawTile('g', sx, sy);
+      if (inside && room && room.cell(ctx, ch, x, y, T, cam)) continue;
+      if (school && !schoolCovered && school.cell(ctx, ch, x, y, T, cam)) continue;
+      var pondGround = !inside && ch === 'w' && outdoor && outdoor.ready('pond');
+      if (pondGround) {
+        if (!(window.PrivacyTerrain && window.PrivacyTerrain.drawCell(ctx, 'g', x, y, T, cam))) blit('floor_grass', x, y);
         continue;
       }
-      if (!art) { drawTile(ch, sx, sy); continue; }
+      var terrain = !inside && (houseExterior || (ch !== 'H' && ch !== 'o')) && window.PrivacyTerrain && window.PrivacyTerrain.drawCell(ctx, ch, x, y, T, cam);
+      if (!inside && houseExterior && (ch === 'H' || ch === 'o')) {
+        if (!terrain && !blit('floor_grass', x, y)) drawTile('g', sx, sy);
+        continue;
+      }
+      if (!art) { if (!terrain || ch === 'T' || ch === 'f') drawTile(ch, sx, sy); continue; }
       var base = ch === '#' ? (WD.indoor(x, y) ? 'wall_room' : 'wall_school') : ch === 'd' ? (x === 22 ? 'floor_dirt' : 'door_school') : FLOOR[ch];
-      blit(base || 'floor_grass', x, y);
-      if (ch === 'T') list.push({ y: y, fn: (function (xx, yy) { return function () { blit('tree', xx, yy); }; })(x, y) });
+      if (!terrain) blit(base || 'floor_grass', x, y);
+      if (ch === 'T') list.push({ y: y, fn: (function (xx, yy) { return function () {
+        var variation = ((xx * 7 + yy * 11) % 3) * 0.08;
+        if (!(outdoor && outdoor.draw(ctx, 'tree', xx - 0.32 - variation / 2, yy + 1, 1.64 + variation, 2.25 + variation, T, cam))) blit('tree', xx, yy);
+      }; })(x, y) });
       if (ch === 'f') list.push({ y: y, fn: (function (xx, yy) { return function () { blit('fence', xx, yy); }; })(x, y) });
       if (ch === 'd' && x === 22 && y === 17) list.push({ y: y, fn: function () { blit('gate', 22, 17); } });
+    }
+    if (!inside && outdoor) outdoor.draw(ctx, 'pond', 26.9, 21.1, 4.2, 2.2, T, cam);
+    if (inside && room) room.details(ctx, T, cam);
+    if (!inside && school) {
+      if (schoolCovered) list.push({ y: 10, fn: function () { school.exterior(ctx, T, cam); } });
+      else school.details(ctx, T, cam);
     }
     if (!inside && houseExterior) {
       list.push({ y: 16, fn: function () {
@@ -445,11 +484,26 @@
     }
     WD.OBJECTS.forEach(function (ob) {
       if (WD.indoor(ob.x, ob.y) !== inside) return;
+      if (schoolCovered && school.contains(ob.x, ob.y)) return;
       if (!(ob.x <= x1 + 1 && ob.x + ob.w >= x0 - 1 && ob.y <= y1 + 2 && ob.y + ob.h >= y0 - 1)) return;
       var name = art && artFor(ob);
       var bottom = ob.y + ob.h - 1;
+      if (inside && room && ['bed', 'mypc', 'mybook', 'plush'].indexOf(ob.id) >= 0) {
+        list.push({ y: bottom, fn: function () {
+          if (!room.object(ctx, ob, T, cam)) { if (!name || !blit(name, ob.x, bottom)) drawObject(ob); }
+        } });
+        return;
+      }
+      if (!inside && outdoor && (ob.id === 'bench' || ob.id === 'lamp') && outdoor.ready(ob.id)) {
+        list.push({ y: bottom, fn: function () {
+          if (ob.id === 'bench') outdoor.draw(ctx, 'bench', ob.x, bottom + 1, 2, 1.15, T, cam);
+          else outdoor.draw(ctx, 'lamp', ob.x + 0.17, bottom + 1, 0.66, 2.3, T, cam);
+        } });
+        return;
+      }
       if (!name) { list.push({ y: ob.wall ? -1 : bottom, fn: function () { drawObject(ob); } }); return; }
       list.push({ y: ob.wall ? -1 : bottom, fn: function () {
+        if (school && school.object(ctx, ob, T, cam, (trig && trig.target.obj === 'pc3') || (stageInfo && stageInfo.pcOn))) return;
         // 책장처럼 1칸짜리 그림을 여러 칸에 이어 붙이는 경우
         var r = ATLAS.t[name], cells = r ? Math.round(r[2] / ATLAS.size) : ob.w;
         blit(name, ob.x, bottom, Math.max(1, Math.round(ob.w / cells)));
@@ -457,6 +511,7 @@
       } });
     });
     cast.forEach(function (c) {
+      if (schoolCovered && school.contains(c.x, c.y)) return;
       list.push({ y: c.pose === 'sleep' ? c.y - 0.5 : c.y, fn: function () { drawPerson(c.who, o.story.characters[c.who].name, c.x, c.y, c.dir, 0, c.pose); } });
     });
     list.push({ y: me.fy + 0.01, fn: function () { drawPerson('me', o.playerName(), me.fx, me.fy, me.dir, me.moving ? Math.floor(me.t * 4) % 4 : 0); } });
@@ -547,6 +602,8 @@
   }
   function drawMarker(t) {
     var b = targetBox();
+    var school = window.PrivacySchool;
+    if (school && school.contains(b.x, b.y) && !school.contains(me.x, me.y)) b = { x: 10, y: 10, w: 2, h: 1 };
     if (WD.indoor(b.x, b.y) && !WD.indoor(me.x, me.y)) b = { x: WD.INDOOR.entrance.x, y: WD.INDOOR.entrance.y, w: 1, h: 1 };
     var bob = o.reduceMotion() ? 0 : Math.sin(t / 220) * T * 0.08;
     var mx = (b.x + b.w / 2) * T - cam.x, my = b.y * T - cam.y - T * (b.who ? 0.95 : 0.35) + bob;
@@ -598,6 +655,8 @@
   }
   function drawOneBubble(bubble) {
     var who = bubble.who === 'me' ? { x: me.fx, y: me.fy } : bubble.who;
+    var school = window.PrivacySchool;
+    if (school && school.contains(who.x, who.y) && !school.contains(me.x, me.y)) return;
     var cx = who.x * T - cam.x + T / 2;
     var by = who.y * T - cam.y - T * 0.3;
     var fs = Math.max(13, Math.round(T * 0.32));
