@@ -55,7 +55,7 @@
   }
   ['grass', 'path'].forEach(function (name) {
     var im = new Image(); im.onload = function () { images[name] = im; build(); };
-    im.src = 'assets/terrain/' + name + '.png';
+    window.PrivacyImg.load(im, 'assets/terrain/' + name + '.png');
   });
   window.PrivacyTerrain = {
     drawCell: function (ctx, ch, x, y, tile, cam) {

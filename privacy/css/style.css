@@ -264,6 +264,7 @@ body[data-view="v-chapter"] .hud { display: none; }
 .ico-quest {
   display: inline-block; height: 1.5em; width: calc(1.5em * 630 / 669); vertical-align: -0.4em; margin: 0 1px;
   background: url("../assets/icons/quest.png") no-repeat calc(-1.5em * 313 / 669) calc(-1.5em * 293 / 669) / calc(1.5em * 1254 / 669) auto;
+  background-image: image-set(url("../assets/icons/quest.webp") type("image/webp"), url("../assets/icons/quest.png") type("image/png"));
 }
 /* 짧은 안내 한 줄(문 드나들기·길 안내) */
 .m-say {

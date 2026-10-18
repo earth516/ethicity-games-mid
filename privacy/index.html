@@ -30,12 +30,12 @@
         <legend class="hero-legend">축제까지 나흘. 누구로 걸어갈까?</legend>
         <label class="hero-card" data-look="m">
           <input type="radio" name="look" value="m">
-          <img src="assets/landing/hero-boy.png" alt="파란 후드에 노란 가방을 멘 남학생 주인공" width="1024" height="1536" decoding="async">
+          <picture><source srcset="assets/landing/hero-boy.webp" type="image/webp"><img src="assets/landing/hero-boy.png" alt="파란 후드에 노란 가방을 멘 남학생 주인공" width="1024" height="1536" decoding="async"></picture>
           <span class="hero-name">남학생</span>
         </label>
         <label class="hero-card" data-look="f">
           <input type="radio" name="look" value="f">
-          <img src="assets/landing/hero-girl.png" alt="파란 후드에 노란 가방을 멘 포니테일 여학생 주인공" width="1024" height="1536" decoding="async">
+          <picture><source srcset="assets/landing/hero-girl.webp" type="image/webp"><img src="assets/landing/hero-girl.png" alt="파란 후드에 노란 가방을 멘 포니테일 여학생 주인공" width="1024" height="1536" decoding="async"></picture>
           <span class="hero-name">여학생</span>
         </label>
         <p id="look-msg" class="small look-msg" role="alert" hidden>먼저 주인공을 골라 주세요.</p>
@@ -212,6 +212,8 @@
     </div>
   </div>
 
+  <script src="js/webp-list.js"></script>
+  <script src="js/img-src.js"></script>
   <script src="js/config.js"></script>
   <script src="js/story.js"></script>
   <script src="js/engine.js"></script>

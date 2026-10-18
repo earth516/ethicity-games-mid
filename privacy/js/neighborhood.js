@@ -35,7 +35,7 @@
         assets['gate-b'] = { image: im, box: alphaBox(im, Math.floor(w / 2), w) };
       } else assets[name] = { image: im, box: alphaBox(im, 0, w) };
     };
-    im.src = DIR + name + '.png';
+    window.PrivacyImg.load(im, DIR + name + '.png');
   });
 
   // 그림 한 장을 칸 좌표(왼쪽 x, 아래 bottom, 폭·높이)에 그린다
