@@ -290,7 +290,7 @@
   // 장면 중 주인공이 보일 자리: 넓은 화면은 폰 왼쪽 빈 곳, 좁은 화면은 위쪽 맵 자리
   function stageFocus(device) {
     if (device === 'none') return { x: 0.5, y: 0.36 };
-    return $('stage').clientWidth <= 720 ? { x: 0.5, y: 0.17 } : { x: 0.3, y: 0.36 };
+    return $('stage').clientWidth <= 720 ? { x: 0.5, y: 0.17 } : { x: 0.7, y: 0.36 }; // 넓은 화면: 폰(왼쪽) 오른쪽 빈 곳
   }
   function nodeOf(line) { var n = lineNode(line); n._line = line; return n; }
   // 줄이 나타날 때: 같은 공간 친구 머리 위 말풍선(폰 메시지는 원문 대신 📱…) + 장면에 적어 둔 반응
@@ -323,6 +323,7 @@
     var scene = story.scenes[run.scene];
     $('g-chap').textContent = chapterLabel(scene.chapter);
     $('btn-undo').disabled = !run.history.length;
+    window.PrivacyTalk.close(); // 앞 장면 대화창이 남아 선택지를 가리지 않게
     var device = deviceOf(run.scene);
     spokenDevice = device !== 'phone';
     $('v-game').setAttribute('data-device', device);
@@ -353,7 +354,7 @@
     if (stagedScene !== run.scene) {
       stagedScene = run.scene;
       cutPending = true;
-      ready = window.PrivacyMap.stage(st, { card: animate && st.card ? st.card : null, focus: stageFocus(device) });
+      ready = window.PrivacyMap.stage(st, { card: animate && st.card ? st.card : null, focus: function () { return stageFocus(device); } });
     }
     ready.then(function () {
       cutPending = false;
@@ -455,6 +456,7 @@
     var run = progress.run;
     $('btn-undo').disabled = !run.history.length;
     $('stage').classList.remove('dim');
+    window.PrivacyTalk.close();
     stagedScene = null; stageToken++;
     show('v-map', $('hud-mission'));
     window.PrivacyMap.show(run);

@@ -241,7 +241,7 @@
       bubbles: [{ on: '나눔 아직 돼요', who: 'minjun', text: '😟' }] },
     c3_e7_b: { place: 'booth', tint: 'day', card: '그날 오후 · 운동장', cast: only(BOOTH, ['minjun', 'dohyun']),
       bubbles: [{ on: '좀 무서워', who: 'minjun', text: '😰' }] },
-    c3_e8_a: { place: 'room', tint: 'evening', me: ATDESK, pcOn: true, cast: [] },
+    c3_e8_a: { place: 'room', tint: 'evening', me: ATDESK, pcOn: true, device: 'monitor', cast: [] },
     c3_e8_b: { place: 'room', tint: 'night', cast: [] },
     c3_e9_a: { place: 'classroom', tint: 'day', cast: classmates,
       bubbles: [{ on: '다들 퍼 가 주세요', who: 'seoa', text: '…!' }, { on: '당하고만 있으면 안 돼', who: 'hayun', text: '😤' }] },

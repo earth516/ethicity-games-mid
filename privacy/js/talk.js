@@ -72,6 +72,7 @@
       textEl.textContent = '';
       lines.forEach(function (l, i) { textEl.appendChild(para(l)); if (opts.onLine) opts.onLine(l, i); });
     } else showLine();
+    nextBtn.focus({ preventScroll: true }); // 키보드로 바로 넘길 수 있게
     return new Promise(function (resolve) { done = resolve; });
   }
 

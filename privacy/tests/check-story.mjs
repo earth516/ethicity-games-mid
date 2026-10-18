@@ -276,6 +276,8 @@ for (const id of sceneIds) {
   if (!WORLD.walkable(me.x, me.y)) err('무대에서 내가 막힌 칸: ' + id);
   if (['day', 'evening', 'night'].indexOf(st.tint) < 0) err('무대 시간대 잘못됨: ' + id);
   if (st.device && ['phone', 'monitor', 'none'].indexOf(st.device) < 0) err('무대 기기 잘못됨: ' + id);
+  const dev = st.device || { group: 'phone', dm: 'phone', sns: 'phone', ai: 'monitor', pc: 'monitor', place: 'none' }[(story.scenes[id].view || {}).type];
+  if (st.pcOn && dev !== 'monitor') err('컴퓨터가 켜진 무대인데 모니터가 아님: ' + id);
   const at = { [me.x + ',' + me.y]: 'me' };
   for (const c of st.cast) {
     if (!story.characters[c.who]) err('무대 인물 없음: ' + id + '/' + c.who);

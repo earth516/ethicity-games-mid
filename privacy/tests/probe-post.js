@@ -255,7 +255,8 @@
       ok(d.bubbleTexts.indexOf('…') >= 0 && d.bubbleTexts.indexOf('👀') >= 0, '손으로 쓴 반응(서아 …, 하윤 👀): ' + d.bubbleTexts);
       ok(d.bubbleTexts.every(function (t) { return t.indexOf('올려야지') < 0; }), '폰 메시지 원문은 머리 위에 안 뜸');
       var mp = PrivacyMap.debug.me(), mpt = PrivacyMap.debug.tileToClient(mp.x, mp.y), phr = $('#g-phone').getBoundingClientRect(), dkr = $('#g-dock').getBoundingClientRect();
-      ok(mpt.x < phr.left && mpt.y < dkr.top, '주인공이 폰·선택 상자에 가리지 않음 ' + JSON.stringify([Math.round(mpt.x), Math.round(mpt.y), Math.round(phr.left), Math.round(dkr.top)]));
+      ok(phr.right < dkr.left, '시선 순서: 폰(카톡)은 왼쪽, 선택 상자는 오른쪽 ' + [Math.round(phr.right), Math.round(dkr.left)]);
+      ok(mpt.x > phr.right && mpt.y < dkr.top, '주인공이 폰·선택 상자에 가리지 않음 ' + JSON.stringify([Math.round(mpt.x), Math.round(mpt.y), Math.round(phr.left), Math.round(dkr.top)]));
       var m1 = PrivacyMap.debug.me(); key('ArrowLeft'); key('ArrowLeft', 'keyup'); await wait(300); var m2 = PrivacyMap.debug.me();
       ok(m1.x === m2.x && m1.y === m2.y && view() === 'v-game', '장면 중 방향키로 걷지 않음');
       document.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true })); await wait();
@@ -290,6 +291,8 @@
       var pr = $('#g-phone').getBoundingClientRect(), sr = $('#stage').getBoundingClientRect();
       ok(pr.width > sr.width * 0.8 && pr.height < sr.height * 0.75, '좁은 무대: 폰은 아래 시트 ' + [pr.width, pr.height, sr.width, sr.height].map(Math.round));
       ok(pr.top > sr.top + 60, '폰 위로 맵이 보임');
+      var rme = PrivacyMap.debug.me(), rpt = PrivacyMap.debug.tileToClient(rme.x, rme.y);
+      ok(rpt.y < pr.top && rpt.x > sr.left && rpt.x < sr.right, '좁아진 뒤에도 주인공이 폰 위에 보임 ' + JSON.stringify([Math.round(rpt.x), Math.round(rpt.y), Math.round(pr.top)]));
     }
 
     else if (s === 'title') {
@@ -351,6 +354,53 @@
       ok(view() === 'v-ending', '그림을 못 불러와도 엔딩까지 진행');
       var fb = $$('#e-stats .trust-list .spr.face');
       ok(fb.length >= 4 && fb.every(function (n) { return n.classList.contains('fallback') && n.textContent.length > 0; }), '얼굴 대신 이니셜 ' + fb.map(function (n) { return n.textContent; }));
+    }
+
+    else if (s === 'quest-icon') {
+      $('#btn-new').click(); await wait(30);
+      ok($('#v-map').textContent.indexOf('❗') < 0 && $$('#v-map .map-help .ico-quest').length === 1, '맵 안내 문장: ❗ 대신 노란 느낌표 그림');
+      key('ArrowRight'); key('ArrowRight', 'keyup'); await wait(300); // 침대 옆에서 한 칸 비켜 아무것도 없는 곳으로
+      $('#btn-map-act').click(); await wait(30);
+      ok(!!$('#m-say .ico-quest') && $('#m-say').textContent.indexOf('❗') < 0, '대상 아닌 곳에서 누를 때 안내에도 그림');
+      $('#btn-map-skip').click(); await wait(30);
+      ok(!!$('#btn-map-act .ico-quest') && $('#btn-map-act').textContent.indexOf('❗') < 0 && /하윤에게 말 걸기/.test($('#btn-map-act').textContent), '목적지 버튼: 그림 + 하윤에게 말 걸기');
+      ok($$('.ico-quest').every(function (im) { return /quest\.png/.test(getComputedStyle(im).backgroundImage) && im.getAttribute('role') === 'img' && !!im.getAttribute('aria-label'); }), 'quest.png 사용·대체 글자 있음');
+    }
+
+    else if (s === 'school-roof') {
+      $('#btn-new').click(); await wait(30);
+      ok(PrivacyMap.debug.roof() === true, '학교 밖(내 방)에선 학교 지붕이 덮여 있음');
+      var ow = { walk: true, areas: [], roofAt: {} };
+      var M = PrivacyMap.debug, route = M.route();
+      for (var k = 0; k < route.length; k++) {
+        key(ARROW[route[k]]); key(ARROW[route[k]], 'keyup'); var g = 0; await wait(16); while (M.me().moving && g++ < 100) await wait(16);
+        var a = M.me().area; if (!(a in ow.roofAt)) ow.roofAt[a] = M.roof();
+      }
+      ok(ow.roofAt['교문'] === true && ow.roofAt['마을 길'] === true, '교문·마을 길에선 지붕 덮임 ' + JSON.stringify(ow.roofAt));
+      ok(ow.roofAt['복도'] === false && ow.roofAt['2학년 3반 교실'] === false, '건물에 들어가면 지붕이 사라짐');
+    }
+
+    else if (s === 'talk-guard') {
+      $('#btn-new').click(); await wait(30);
+      $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); await wait(30);
+      ok(!$('#talk').hidden && document.activeElement === $('#btn-talk-next'), '대화창이 열리면 ▼에 키보드 포커스');
+      key('ArrowLeft'); key('ArrowLeft', 'keyup'); await wait(200);
+      ok(!$('#talk').hidden && view() === 'v-map', '하윤 소개 중 방향키로 건너뛰지 않음');
+      // 소개 도중 처음부터 다시 → 내 방에서 다시 걷기(바로 장면으로 넘어가면 안 됨)
+      $('#btn-menu').click(); await wait(); $('#btn-menu-restart').click(); await wait(); confirmYes(); await wait(50);
+      if (!$('#talk').hidden) { $('#btn-talk-next').click(); await wait(50); }
+      var rs = PrivacyApp.state();
+      ok(view() === 'v-map' && rs.screen === 'map' && rs.mapTarget === 'pro_1' && /내 방/.test($('#m-area').textContent), '소개 중 처음부터 다시 → 내 방 걷기부터 ' + JSON.stringify([view(), rs.screen, $('#m-area').textContent]));
+      // 장소 장면에서 대화창이 열린 채 되돌리기 → 대화창 닫힘
+      await play(R.A, { upto: 2 });
+      $$('#g-dock .choice').filter(function (b) { return b.getAttribute('data-choice') === 'fix'; })[0].click(); await wait(50);
+      var gn = 0; while (!$('#btn-next') && gn++ < 100) await wait(20);
+      $('#btn-next').click(); await wait(50);
+      $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); await wait(50);
+      var gt = 0; while ($('#talk').hidden && gt++ < 100) await wait(20);
+      ok(PrivacyApp.state().scene === 'c1_e2_a' && !$('#talk').hidden, '장소 장면 대화창 열림');
+      $('#btn-undo').click(); await wait(); confirmYes(); await wait(100);
+      ok(PrivacyApp.state().scene === 'c1_e1_b' && $('#talk').hidden, '되돌리면 이전 장면 대화창은 닫힘');
     }
 
     else if (s === 'map-resume') {

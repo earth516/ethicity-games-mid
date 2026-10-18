@@ -26,7 +26,7 @@
   var o = null;                 // init 옵션
   var canvas, ctx, wrap;
   var active = false, raf = null, tmr = null, lastT = 0;
-  var mode = null, stageInfo = null, focus = null; // focus: 장면 중 주인공을 둘 화면 위치(비율). 폰·선택 상자에 가리지 않게 // mode: 'walk'(걷기·입력) | 'stage'(장면 무대: 그리기만)
+  var mode = null, stageInfo = null, focus = null, gen = 0; // gen: show()마다 +1(지난 인사말이 새 걷기를 넘기지 않게) // focus: 장면 중 주인공을 둘 화면 위치(비율). 폰·선택 상자에 가리지 않게 // mode: 'walk'(걷기·입력) | 'stage'(장면 무대: 그리기만)
   var run = null, trig = null, targetId = null;
   var cast = [], blocked = {};
   var me = { x: 0, y: 0, dir: 'down', fx: 0, fy: 0, moving: false, t: 0, from: null, to: null, door: null, frame: 0 };
@@ -144,7 +144,7 @@
     $('m-time').textContent = trig.time;
     $('m-mission').textContent = trig.mission;
     held = []; path = null; actOnArrive = false; busy = false; bubbles = [];
-    mode = 'walk'; stageInfo = null; focus = null;
+    mode = 'walk'; stageInfo = null; focus = null; gen++;
     lastArea = '';
     updateArea();
     say(trig.hint || '');
@@ -158,7 +158,7 @@
   // 장면 무대: 입력 없이 장소·인물·시간대만 그린다. card가 있으면 잠깐 컷 카드를 띄우고 끝나면 resolve
   function stage(st, opts) {
     opts = opts || {};
-    mode = 'stage'; stageInfo = st; trig = null; targetId = null; focus = opts.focus || null;
+    mode = 'stage'; stageInfo = st; trig = null; targetId = null; focus = opts.focus || null; gen++;
     cast = st.cast.slice(); blocked = {};
     cast.forEach(function (c) { loadSprite(c.who, 'char_' + c.who + '.png'); });
     var look = o.playerLook();
@@ -258,7 +258,7 @@
     if (window.PrivacyTalk.isOpen()) { window.PrivacyTalk.next(); return; }
     if (busy || me.moving) return;
     var ns = neighbors();
-    if (!ns.length) { say('가까이 가서 눌러 보세요. ❗가 다음 목적지예요.'); return; }
+    if (!ns.length) { say('가까이 가서 눌러 보세요. {!}가 다음 목적지예요.'); return; }
     var t = ns.filter(isTarget)[0];
     if (t) {
       me.dir = t.dir;
@@ -266,8 +266,8 @@
       say('');
       var who0 = t.type === 'npc' ? t.c.who : null;
       var greet = [].concat(trig.greet || []).map(function (g) { return typeof g === 'string' ? personLine(who0, g) : personLine(g.who || null, g.text); });
-      var tid = targetId;
-      talk(greet).then(function () { busy = false; if (active && mode === 'walk' && targetId === tid) o.onEnter(); });
+      var g0 = gen;
+      talk(greet).then(function () { busy = false; if (active && mode === 'walk' && gen === g0) o.onEnter(); });
       return;
     }
     var n = ns[0];
@@ -289,6 +289,14 @@
     return { who: who, name: who ? o.story.characters[who].name : null, text: o.fill(text) };
   }
   // 대화창에 줄이 뜰 때 말하는 사람이 맵에 있으면 머리 위에도 짧게
+  // 글자 속 {!}를 노란 느낌표 그림(quest.png)으로
+  function rich(node, text) {
+    node.textContent = '';
+    String(text).split('{!}').forEach(function (part, i) {
+      if (i) { var ic = document.createElement('span'); ic.className = 'ico-quest'; ic.setAttribute('role', 'img'); ic.setAttribute('aria-label', '노란 느낌표'); node.appendChild(ic); }
+      if (part) node.appendChild(document.createTextNode(part));
+    });
+  }
   function talk(lines) {
     return window.PrivacyTalk.open(lines, { instant: o.instant(), onLine: function (l) {
       var c = cast.filter(function (k) { return k.who === l.who; })[0];
@@ -298,12 +306,12 @@
   // 짧은 안내(문 드나들기·길 안내)는 대화창 대신 무대 위 한 줄로
   function say(text, speaker) {
     if (text && speaker) setBubble(speaker, text);
-    $('m-say').textContent = text || '';
+    rich($('m-say'), text || '');
   }
   function updateHint() {
     var near = nearTarget();
     var btn = $('btn-map-act');
-    btn.textContent = near ? '❗ ' + targetBox().name + (trig.target.npc ? '에게 말 걸기' : ' 조사하기') : '말 걸기 · 조사하기';
+    rich(btn, near ? '{!} ' + targetBox().name + (trig.target.npc ? '에게 말 걸기' : ' 조사하기') : '말 걸기 · 조사하기');
     btn.classList.toggle('primary', near);
   }
 
@@ -335,7 +343,7 @@
     var dir = KEY_DIR[e.key];
     if (dir) {
       e.preventDefault();
-      if (window.PrivacyTalk.isOpen()) window.PrivacyTalk.close(); // 걸으면 대화창은 닫힌다
+      if (window.PrivacyTalk.isOpen()) { if (busy) return; window.PrivacyTalk.close(); } // 걸으면 대화창은 닫힌다(목적지 인사말은 끝까지)
       path = null; actOnArrive = false;
       if (held.indexOf(dir) < 0) held.push(dir);
       if (!me.moving && !busy) tryStep(dir);
@@ -415,7 +423,8 @@
       T = Math.max(28, Math.min(96, Math.floor(Math.min(viewW / (WD.INDOOR.w + 0.8), (viewH - 160) / (WD.INDOOR.h + 0.8)))));
     }
     var mapW = WD.W * T, mapH = WD.H * T;
-    var fx = focus ? focus.x : 0.5, fy = focus ? focus.y : 0.5;
+    var f = typeof focus === 'function' ? focus() : focus; // 장면 중엔 화면 크기에 따라 매번 다시
+    var fx = f ? f.x : 0.5, fy = f ? f.y : 0.5;
     // 걷기: 맵 끝에서 멈춤 / 장면: 주인공을 focus 자리에 두려고 맵 밖(폰·선택 상자 뒤)까지 조금 넘어갈 수 있음
     var slack = focus ? 0.5 : 0;
     cam.x = Math.max(-viewW * slack, Math.min(mapW - viewW * (1 - slack), me.fx * T + T / 2 - viewW * fx));
@@ -707,6 +716,7 @@
       me: function () { return { x: me.x, y: me.y, dir: me.dir, moving: me.moving, area: WD.areaName(me.x, me.y) }; },
       route: routeToTarget,
       nearTarget: nearTarget,
+      roof: function () { var s = window.PrivacySchool; return !!(s && !s.contains(me.x, me.y)); },
       stage: function () {
         return { mode: mode, place: stageInfo && stageInfo.place, tint: stageInfo && stageInfo.tint,
           cast: cast.map(function (c) { return c.who; }),
