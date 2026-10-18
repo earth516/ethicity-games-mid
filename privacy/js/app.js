@@ -13,6 +13,9 @@
 
   var SPEED_MS = { normal: 650, fast: 220, instant: 0 };
   var VIEW_ICON = { group: '👥', dm: '💬', sns: '📱', ai: '✦', pc: '🖥', place: '📍' };
+  // 장면을 띄우는 기기: 폰(메신저·SNS) / 모니터(공용 PC·AI) / 없음(그 자리 대화 → 대화창)
+  var DEVICE = { group: 'phone', dm: 'phone', sns: 'phone', ai: 'monitor', pc: 'monitor', place: 'none' };
+  var WD = window.PRIVACY_WORLD;
   var VIEW_KIND = { group: '단체 대화방', dm: '개인 대화', sns: 'SNS', ai: 'AI 도우미', pc: '공용 컴퓨터', place: '장소' };
 
   /* ── 상태 ───────────────────────── */
@@ -23,6 +26,7 @@
   var pathBack = 'v-start', reflectBack = 'v-start';
   var noticeMsgs = [];
   var posTimer = null;
+  var stagedScene = null, stageToken = 0, cutPending = false, spokenDevice = false;
 
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) {
@@ -92,7 +96,8 @@
   var STAGE_VIEWS = ['v-map', 'v-game', 'v-chapter']; // 맵 무대 위에 겹쳐 뜨는 화면
   function show(id, focusEl) {
     stopReveal();
-    if (id !== 'v-map') { window.PrivacyMap.hide(); window.PrivacyTalk.close(); }
+    if (STAGE_VIEWS.indexOf(id) < 0) { window.PrivacyMap.hide(); stagedScene = null; stageToken++; }
+    if (id !== 'v-map') window.PrivacyTalk.close();
     $('stage').hidden = STAGE_VIEWS.indexOf(id) < 0;
     VIEWS.forEach(function (v) { $(v).hidden = v !== id; });
     current = id;
@@ -222,7 +227,7 @@
   function flushReveal() {
     if (!revealDone) return;
     var log = $('g-log');
-    revealQueue.forEach(function (n) { n.classList.remove('enter'); log.appendChild(n); });
+    revealQueue.forEach(function (n) { n.classList.remove('enter'); log.appendChild(n); stageBubble(n._line); });
     revealQueue = [];
     if (revealTimer) clearTimeout(revealTimer);
     revealTimer = null;
@@ -235,7 +240,7 @@
     var log = $('g-log');
     var ms = SPEED_MS[settings.speed];
     if (!animate || ms === 0 || !nodes.length) {
-      nodes.forEach(function (n) { log.appendChild(n); });
+      nodes.forEach(function (n) { log.appendChild(n); stageBubble(n._line); });
       scrollLog(true);
       done();
       return;
@@ -251,6 +256,7 @@
       var n = revealQueue.shift();
       if (!settings.reduceMotion) n.classList.add('enter');
       log.appendChild(n);
+      stageBubble(n._line);
       scrollLog(false);
       if (!revealQueue.length) {
         revealTimer = null;
@@ -270,11 +276,47 @@
     }
   }
 
+  function deviceOf(sceneId) {
+    var st = WD.STAGES[sceneId], v = story.scenes[sceneId].view || { type: 'place' };
+    return (st && st.device) || DEVICE[v.type] || 'phone';
+  }
+  function nodeOf(line) { var n = lineNode(line); n._line = line; return n; }
+  // 줄이 나타날 때: 같은 공간 친구 머리 위 말풍선(폰 메시지는 원문 대신 📱…) + 장면에 적어 둔 반응
+  function stageBubble(line) {
+    if (!line || !progress.run) return;
+    var st = WD.STAGES[progress.run.scene];
+    if (!st) return;
+    var who = line.who, text = fill(line.text || '');
+    if (who && who !== 'narr' && who !== 'sys' && who !== 'me') window.PrivacyMap.bubble(who, spokenDevice ? text : '📱…', !spokenDevice);
+    (st.bubbles || []).forEach(function (b) { if (text.indexOf(b.on) >= 0) window.PrivacyMap.bubble(b.who, b.text); });
+  }
+  // 그 자리 대화(장소 장면)는 포켓몬식 대화창으로 한 줄씩
+  function talkLines(list) {
+    var items = list.filter(function (l) { return l.who !== 'sys' && !l.kind; }).map(function (l) {
+      var who = l.who || 'narr';
+      if (who === 'narr') return { who: null, name: null, text: fill(l.text), line: l };
+      var ch = story.characters[who] || { name: who };
+      return { who: who, name: who === 'me' ? player.nickname + ' (나)' : ch.name, text: fill(l.text), line: l };
+    });
+    return window.PrivacyTalk.open(items, { instant: settings.speed === 'instant', onLine: function (it) { stageBubble(it.line); } });
+  }
+  function reactionLines(run, scene) {
+    var c = (scene.choices || []).filter(function (x) { return x.id === run.reaction; })[0];
+    if (!c) return [];
+    return (c.say ? [{ who: 'me', text: c.say }] : []).concat(E.visibleLines(story, c.react, run));
+  }
+
   function renderGame(animate) {
     var run = progress.run;
     var scene = story.scenes[run.scene];
     $('g-chap').textContent = chapterLabel(scene.chapter);
     $('btn-undo').disabled = !run.history.length;
+    var device = deviceOf(run.scene);
+    spokenDevice = device !== 'phone';
+    $('v-game').setAttribute('data-device', device);
+    $('g-phone').setAttribute('data-device', device);
+    $('g-phone').hidden = device === 'none';
+    $('stage').classList.toggle('dim', device !== 'none');
 
     var head = $('g-head');
     head.textContent = '';
@@ -290,12 +332,29 @@
     if (v.meta) head.appendChild(el('span', 'head-meta', v.meta));
 
     $('g-log').textContent = '';
-    var pre = preChoiceState(run);
-    var nodes = E.visibleLines(story, scene.lines, pre).map(lineNode);
-    var reactNodes = reactionNodes(run, scene);
+    $('g-dock').textContent = '';
     if (current !== 'v-game') show('v-game', $('g-chap'));
-    // 반응 표시 중으로 복원된 경우: 장면 대사 + 반응까지 한 번에
-    reveal(nodes.concat(reactNodes), animate && !run.reaction, renderDock);
+    // 무대: 장면이 바뀌면 그 장소로(처음 들어갈 때만 컷 카드)
+    var token = ++stageToken;
+    var st = WD.STAGES[run.scene] || { place: 'classroom', tint: 'day', cast: [] };
+    var ready = Promise.resolve();
+    if (stagedScene !== run.scene) {
+      stagedScene = run.scene;
+      cutPending = true;
+      ready = window.PrivacyMap.stage(st, { card: animate && st.card ? st.card : null });
+    }
+    ready.then(function () {
+      cutPending = false;
+      if (token !== stageToken) return;
+      var pre = preChoiceState(run);
+      var lines = E.visibleLines(story, scene.lines, pre);
+      if (device === 'none') {
+        talkLines(run.reaction ? reactionLines(run, scene) : lines).then(function () { if (token === stageToken) renderDock(); });
+        return;
+      }
+      // 반응 표시 중으로 복원된 경우: 장면 대사 + 반응까지 한 번에
+      reveal(lines.map(nodeOf).concat(reactionNodes(run, scene)), animate && !run.reaction, renderDock);
+    });
   }
 
   function reactionNodes(run, scene) {
@@ -306,8 +365,8 @@
     mine.appendChild(el('span', 'echo-label', '내 선택'));
     mine.appendChild(el('span', null, fill(c.text)));
     out.push(mine);
-    if (c.say) out.push(lineNode({ who: 'me', text: c.say }));
-    return out.concat(E.visibleLines(story, c.react, run).map(lineNode));
+    if (c.say) out.push(nodeOf({ who: 'me', text: c.say }));
+    return out.concat(E.visibleLines(story, c.react, run).map(nodeOf));
   }
 
   function renderDock() {
@@ -356,6 +415,11 @@
     $('btn-undo').disabled = false;
     // 화면은 그대로 두고 선택 반응만 이어서 보여 준다
     $('g-dock').textContent = '';
+    if (deviceOf(next.scene) === 'none') {
+      var tk = stageToken;
+      talkLines(reactionLines(next, scene)).then(function () { if (tk === stageToken) renderDock(); });
+      return;
+    }
     reveal(reactionNodes(next, scene), true, renderDock);
   }
 
@@ -378,6 +442,8 @@
   function renderMap() {
     var run = progress.run;
     $('btn-undo').disabled = !run.history.length;
+    $('stage').classList.remove('dim');
+    stagedScene = null; stageToken++;
     show('v-map', $('hud-mission'));
     window.PrivacyMap.show(run);
   }
@@ -449,6 +515,9 @@
     }
     $('btn-chapter-go').textContent = n === 4 ? '에필로그 보기' : n + '장 시작';
     show('v-chapter');
+    // 장 카드 뒤로 직전 장면의 무대를 어둡게 깐다
+    $('stage').classList.add('dim');
+    if (stagedScene !== run.scene) { stagedScene = run.scene; window.PrivacyMap.stage(WD.STAGES[run.scene] || { place: 'classroom', tint: 'day', cast: [] }); }
   }
 
   /* ── 엔딩 ─────────────────────────── */
@@ -708,6 +777,7 @@
   window.PrivacyApp = {
     state: function () { return progress.run ? E.clone(progress.run) : null; },
     player: function () { return E.clone(player); },
-    setSpeed: function (s) { if (SPEED_MS.hasOwnProperty(s)) settings.speed = s; }
+    setSpeed: function (s) { if (SPEED_MS.hasOwnProperty(s)) settings.speed = s; },
+    staging: function () { return cutPending; }
   };
 })();

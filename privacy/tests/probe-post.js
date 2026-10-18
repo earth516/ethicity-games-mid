@@ -38,6 +38,8 @@
         continue;
       }
       if (v !== 'v-game') { fail.push('예상 밖 화면: ' + v); break; }
+      if ($('#talk') && !$('#talk').hidden) { await passTalk(); continue; }
+      if (PrivacyApp.staging && PrivacyApp.staging()) { await wait(50); continue; }
       var skip = $('.skip-btn');
       if (skip) { skip.click(); continue; }
       var choices = $$('#g-dock .choice');
@@ -241,6 +243,53 @@
       ok(PrivacyMap.debug.stage().bubbles.length === 0, '말풍선 지우기');
     }
 
+    else if (s === 'stage-phone') {
+      $('#btn-new').click();
+      await play(R.A, { upto: 0 });
+      var d = PrivacyMap.debug.stage();
+      ok(view() === 'v-game' && d.mode === 'stage' && d.place === 'classroom', '단톡 장면이 교실 무대 위에서 ' + JSON.stringify(d));
+      ok(['hayun', 'dohyun', 'seoa', 'minjun'].every(function (w) { return d.cast.indexOf(w) >= 0; }), '같은 공간 친구 4명: ' + d.cast);
+      ok($('#g-phone').getAttribute('data-device') === 'phone' && !$('#g-phone').hidden, '폰 오버레이');
+      ok($('#g-phone').getBoundingClientRect().width <= $('#stage').clientWidth * 0.45, '데스크톱에서 폰은 무대 폭의 45% 이하 ' + Math.round($('#g-phone').getBoundingClientRect().width) + '/' + $('#stage').clientWidth);
+      ok(d.bubbles.indexOf('dohyun') >= 0 && d.bubbles.indexOf('minjun') >= 0, '메시지 보낸 친구 머리 위 말풍선: ' + d.bubbles);
+      ok(d.bubbleTexts.indexOf('…') >= 0 && d.bubbleTexts.indexOf('👀') >= 0, '손으로 쓴 반응(서아 …, 하윤 👀): ' + d.bubbleTexts);
+      ok(d.bubbleTexts.every(function (t) { return t.indexOf('올려야지') < 0; }), '폰 메시지 원문은 머리 위에 안 뜸');
+      var m1 = PrivacyMap.debug.me(); key('ArrowLeft'); key('ArrowLeft', 'keyup'); await wait(300); var m2 = PrivacyMap.debug.me();
+      ok(m1.x === m2.x && m1.y === m2.y && view() === 'v-game', '장면 중 방향키로 걷지 않음');
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true })); await wait();
+      ok(PrivacyApp.state().reaction === 'photo', '숫자 키로 선택');
+    }
+
+    else if (s === 'stage-flow') {
+      $('#btn-new').click();
+      await play(R.A, { upto: 1, stopAtMap: true });
+      $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); await wait(); await passTalk(); await wait(50);
+      var f1 = PrivacyMap.debug.stage();
+      ok(view() === 'v-game' && f1.place === 'room' && f1.tint === 'evening', '하교해 침대 → 내 방 저녁 무대 ' + JSON.stringify(f1));
+      await play(R.A, { from: 1, upto: 3 });
+      ok(PrivacyApp.state().scene === 'c1_e2_a' && $('#g-phone').hidden && $$('#g-dock .choice').length > 0, '장소 장면: 폰 없이 대화창 → 선택지');
+      ok(PrivacyMap.debug.stage().place === 'classroom', '장소 장면 무대: 교실');
+      await play(R.A, { from: 3, upto: 4 });
+      ok(PrivacyApp.state().scene === 'c1_e2_b' && PrivacyMap.debug.stage().place === 'room' && PrivacyMap.debug.stage().tint === 'night', '그날 밤 내 방');
+      $('#btn-undo').click(); await wait(); confirmYes(); await wait(50); await passTalk(); await wait(50);
+      ok(PrivacyApp.state().scene === 'c1_e2_a' && PrivacyMap.debug.stage().place === 'classroom', '되돌리면 무대도 교실로');
+      await play(R.A, { from: 3, upto: 8 });
+      ok(PrivacyApp.state().scene === 'c2_e5_a' && $('#g-phone').getAttribute('data-device') === 'monitor', 'AI 도우미는 모니터');
+      ok(PrivacyMap.debug.stage().place === 'room', '모니터 장면 무대: 내 방');
+    }
+
+    else if (s === 'stage-resize') {
+      $('#btn-new').click();
+      await play(R.A, { upto: 0 });
+      $('#stage').style.width = '400px';
+      window.dispatchEvent(new Event('resize')); await wait(300);
+      var cw = $('#m-canvas').getBoundingClientRect().width;
+      ok(Math.abs(cw - $('#stage').clientWidth) < 2, '좁아지면 캔버스도 무대 폭으로 ' + Math.round(cw) + '/' + $('#stage').clientWidth);
+      var pr = $('#g-phone').getBoundingClientRect(), sr = $('#stage').getBoundingClientRect();
+      ok(pr.width > sr.width * 0.8 && pr.height < sr.height * 0.75, '좁은 무대: 폰은 아래 시트 ' + [pr.width, pr.height, sr.width, sr.height].map(Math.round));
+      ok(pr.top > sr.top + 60, '폰 위로 맵이 보임');
+    }
+
     else if (s === 'map-resume') {
       if (P.phase === 0) {
         $('#btn-new').click();
@@ -396,8 +445,9 @@
     }
 
     else if (s === 'normal-speed') {
-      $('#btn-new').click();
-      await wait(100);
+      $('#btn-new').click(); await wait();
+      $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); await wait(); await passTalk();
+      var gw = 0; while (!$$('#g-log li').length && gw++ < 200) await wait(20);
       var shown = $$('#g-log li').length;
       ok(shown >= 1 && shown < 6 && !!$('.skip-btn'), '대사가 차례로 나옴(100ms 뒤 ' + shown + '줄)');
       $('#g-log').click(); await wait();

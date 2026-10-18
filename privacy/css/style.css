@@ -278,10 +278,42 @@ body[data-view="v-map"] .talk { bottom: 64px; }
 }
 @keyframes blink { 50% { opacity: 0; } }
 
-/* 장면(임시: Task 4에서 폰·모니터 오버레이로) */
-#v-game { display: flex; flex-direction: column; gap: 8px; padding: 84px 12px 12px; background: rgba(22, 32, 31, .35); }
-#v-game .phone { flex: 1 1 auto; min-height: 0; max-height: none; }
-#v-game .dock { flex: none; max-height: 45%; overflow-y: auto; padding: 8px; border-radius: var(--radius-out); background: var(--card); min-height: 0; }
+/* 장면: 무대 위에 폰(메신저·SNS)·모니터(공용 PC·AI)가 떠오르고, 선택은 아래 메뉴 상자에서 */
+.stage { container-type: inline-size; }
+.stage.dim .map-wrap::after { content: ""; position: absolute; inset: 0; background: rgba(22, 32, 31, .22); pointer-events: none; }
+#v-game {
+  display: grid; grid-template-columns: 1fr min(42%, 380px); grid-template-rows: 1fr auto;
+  gap: 12px; padding: 84px 12px 12px;
+}
+#v-game[data-device="monitor"] { grid-template-columns: 1fr min(44%, 440px); }
+#v-game .phone { grid-column: 2; grid-row: 1 / 3; min-height: 0; max-height: none; align-self: stretch; animation: phone-up .28s ease-out; }
+#v-game .dock {
+  grid-column: 1; grid-row: 2; align-self: end; min-height: 0; max-height: 100%; overflow-y: auto;
+  padding: 10px; background: var(--card); border: 3px solid var(--text); border-radius: 12px;
+  box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 4px #9FB2B0;
+}
+#v-game .dock:empty { display: none; }
+#v-game[data-device="none"] .dock { grid-column: 1 / 3; }
+@keyframes phone-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* 폰: 짙은 테두리(베젤), 위쪽 머리글은 상태 표시줄처럼 */
+.phone[data-device="phone"] { border: 8px solid #1F2433; border-radius: 30px; /* 안쪽 22 + 테두리 8 */ }
+.phone[data-device="monitor"] { border: 10px solid #2B3240; border-bottom-width: 18px; border-radius: 14px; }
+
+/* 선택지: 고를 줄에 ▶ */
+#v-game .choice { position: relative; padding-left: 30px; }
+#v-game .choice::before { content: "▶"; position: absolute; left: 10px; top: 14px; font-size: .7rem; color: var(--text); visibility: hidden; }
+#v-game .choice:hover::before, #v-game .choice:focus-visible::before, #v-game .choice:focus::before { visibility: visible; }
+
+/* 좁은 무대(휴대폰): 폰은 아래에서 올라오는 시트, 위쪽에 맵이 보인다 */
+@container (max-width: 720px) {
+  /* 위 30%는 맵 자리(말풍선이 보이게), 그 아래 폰, 맨 아래 선택 */
+  #v-game, #v-game[data-device="monitor"] {
+    grid-template-columns: 1fr; grid-template-rows: 30% minmax(0, 1fr) auto; gap: 8px; padding: 0 8px 8px;
+  }
+  #v-game .phone { grid-column: 1; grid-row: 2; }
+  #v-game .dock, #v-game[data-device="none"] .dock { grid-column: 1; grid-row: 3; max-height: 40cqw; max-height: 46vh; }
+}
 
 /* 장 전환 카드 */
 #v-chapter { background: rgba(22, 32, 31, .45); }

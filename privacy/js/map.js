@@ -266,7 +266,8 @@
       say('');
       var who0 = t.type === 'npc' ? t.c.who : null;
       var greet = [].concat(trig.greet || []).map(function (g) { return typeof g === 'string' ? personLine(who0, g) : personLine(g.who || null, g.text); });
-      talk(greet).then(function () { busy = false; if (active) o.onEnter(); });
+      var tid = targetId;
+      talk(greet).then(function () { busy = false; if (active && mode === 'walk' && targetId === tid) o.onEnter(); });
       return;
     }
     var n = ns[0];
@@ -573,15 +574,18 @@
     }
   }
   // 말풍선: 인물마다 하나씩, 3.2초 뒤 사라짐. 길면 12자에서 자른다
-  function setBubble(c, text) {
+  // weak(자동 '📱…')은 살아 있는 반응 말풍선을 덮지 않는다
+  function setBubble(c, text, weak) {
     text = String(text);
+    var now = performance.now();
+    if (weak && bubbles.some(function (b) { return b.who === c && !b.weak && b.until > now; })) return;
     bubbles = bubbles.filter(function (b) { return b.who !== c; });
-    bubbles.push({ text: text.length > 12 ? text.slice(0, 12) + '…' : text, who: c, until: performance.now() + 3200 });
+    bubbles.push({ text: text.length > 12 ? text.slice(0, 12) + '…' : text, who: c, until: now + 3200, weak: !!weak });
   }
-  function bubbleFor(who, text) {
+  function bubbleFor(who, text, weak) {
     var c = who === 'me' ? 'me' : cast.filter(function (k) { return k.who === who; })[0];
     if (!c) return false;
-    setBubble(c, text);
+    setBubble(c, text, weak);
     return true;
   }
   function liveBubbles() { var now = performance.now(); return bubbles.filter(function (b) { return b.until > now; }); }
@@ -629,6 +633,7 @@
     window.addEventListener('blur', function () { held = []; });
     canvas.addEventListener('pointerdown', onPointer);
     window.addEventListener('resize', resize);
+    if (window.ResizeObserver) new ResizeObserver(function () { resize(); }).observe(wrap); // 무대 크기가 바뀌어도 캔버스를 맞춘다
     $('btn-map-act').addEventListener('click', act);
     $('btn-map-skip').addEventListener('click', skipToTarget);
   }
