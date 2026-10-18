@@ -412,6 +412,42 @@ h2 .event-topic { display: block; margin-top: 2px; }
 .q-list li + li { margin-top: 10px; }
 .tag { font-size: .8rem; font-weight: 600; color: var(--text-mute); margin-left: 6px; }
 
+/* ── 엔딩 연출(검은 화면) ───────────── */
+.finale {
+  position: fixed; inset: 0; z-index: 60; overflow-y: auto; padding: 48px 16px;
+  background: #000; color: #F2F2EE; display: grid; justify-items: center; align-content: start;
+  animation: finale-in 1.2s ease both;
+}
+.finale:focus { outline: none; }
+@keyframes finale-in { from { opacity: 0; } }
+.finale-inner { width: min(40rem, 100%); margin: auto 0; }
+.finale-line { opacity: 0; transform: translateY(6px); transition: opacity .9s ease, transform .9s ease; }
+.finale-line.on { opacity: 1; transform: none; }
+.finale-title { font-family: var(--pixel); font-size: clamp(1.6rem, 5vw, 2.4rem); line-height: 1.3; margin: 0 0 8px; }
+.finale-q { font-size: 1.15rem; color: #C9CFCB; margin: 0 0 36px; }
+.finale-choices { list-style: none; padding: 0; margin: 0 0 32px; display: grid; gap: 12px; }
+.finale-choice { display: grid; grid-template-columns: 7rem 1fr; gap: 0 14px; padding-left: 12px; border-left: 2px solid #3A403E; }
+.finale-date { grid-row: 1 / 3; padding-top: 3px; font-family: var(--pixel); font-size: .8rem; color: #8F9893; }
+.finale-ev { font-size: .85rem; color: #8F9893; }
+.finale-pick { color: #F2F2EE; }
+.finale-sub { font-weight: 700; color: #C9CFCB; margin: 0 0 12px; }
+.finale-bonds { list-style: none; padding: 0; margin: 0 0 36px; display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: 12px; }
+.finale-bond { display: grid; justify-items: center; gap: 4px; text-align: center; }
+.finale-bond .spr.face { background-color: #1B1F1E; }
+.finale-name { font-size: .9rem; color: #C9CFCB; }
+.finale-word { font-weight: 700; }
+.finale-word.up { color: #7FD8C9; }
+.finale-word.down { color: #8F9893; }
+.finale-end { font-family: var(--pixel); font-size: 1.2rem; margin: 0 0 16px; }
+.finale-skip {
+  position: fixed; top: 12px; right: 12px; z-index: 61; padding: 4px 12px; border-radius: 8px; cursor: pointer;
+  background: none; border: 1px solid #555; color: #C9CFCB; font: inherit; font-size: .85rem;
+}
+@media (max-width: 480px) {
+  .finale-choice { grid-template-columns: 1fr; }
+  .finale-date { grid-row: auto; }
+}
+
 /* ── 메뉴·확인 ───────────── */
 .overlay { position: fixed; inset: 0; z-index: 40; background: rgba(22, 32, 31, .45); display: grid; place-items: center; padding: 16px; }
 .sheet { width: min(100%, 28rem); max-height: 90vh; overflow: auto; background: var(--card); border-radius: 20px; padding: 20px; display: grid; gap: 12px; }

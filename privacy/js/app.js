@@ -98,6 +98,7 @@
     stopReveal();
     if (STAGE_VIEWS.indexOf(id) < 0) { window.PrivacyMap.hide(); stagedScene = null; stageToken++; }
     if (id !== 'v-map') window.PrivacyTalk.close();
+    if (id !== 'v-ending' && $('finale')) { clearTimeout(finaleTimer); finaleState = null; $('finale').hidden = true; }
     $('stage').hidden = STAGE_VIEWS.indexOf(id) < 0;
     VIEWS.forEach(function (v) { $(v).hidden = v !== id; });
     current = id;
@@ -544,6 +545,100 @@
   function endingOf(code) { return story.endings.filter(function (e) { return e.code === code; })[0]; }
   function cardText(end) { return story.title + ' · 엔딩 ' + end.code + ' 「' + end.title + '」 — ' + end.summary; }
 
+  /* ── 엔딩 연출(프로스트펑크식): 검은 화면 → 두 문장 → 9개 사건의 내 선택 → 친구들과의 사이 → 엔딩 이름 ── */
+  var finaleTimer = null, finaleState = null;
+  function eventDate(eventId) {
+    var id = Object.keys(story.scenes).filter(function (k) { return story.scenes[k].event === eventId; })[0];
+    var sys = (story.scenes[id].lines || []).map(function (l) { return E.normLine(l, story); }).filter(function (l) { return l.who === 'sys'; })[0];
+    return sys ? sys.text.split(' · ')[0] : '';
+  }
+  function finale(run, end) {
+    var box = $('finale');
+    if (!box) {
+      box = el('div', 'finale');
+      box.id = 'finale';
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+      box.setAttribute('aria-label', '게임이 끝났습니다');
+      box.tabIndex = -1;
+      box.addEventListener('click', function (e) { if (!e.target.closest('button')) finaleAll(); });
+      document.body.appendChild(box);
+    }
+    box.textContent = '';
+    box.hidden = false;
+    var lines = [];
+    var inner = el('div', 'finale-inner');
+    function add(node) { node.classList.add('finale-line'); lines.push(node); return node; }
+    inner.appendChild(add(el('p', 'finale-title', '게임이 끝났습니다.')));
+    inner.appendChild(add(el('p', 'finale-q', '과연 당신의 선택은 어떠했을까요?')));
+    var picks = el('ol', 'finale-choices');
+    [1, 2, 3].forEach(function (n) {
+      story.chapters[n].events.forEach(function (e) {
+        var h = run.history.filter(function (x) { return story.scenes[x.scene].event === e; })[0];
+        var c = h && (story.scenes[h.scene].choices || []).filter(function (x) { return x.id === h.choice; })[0];
+        var li = add(el('li', 'finale-choice'));
+        li.appendChild(el('span', 'finale-date', eventDate(e)));
+        li.appendChild(el('span', 'finale-ev', story.events[e].title));
+        li.appendChild(el('span', 'finale-pick', c ? fill(c.text) : '—'));
+        picks.appendChild(li);
+      });
+    });
+    inner.appendChild(picks);
+    inner.appendChild(add(el('p', 'finale-sub', '친구들과의 사이')));
+    var bonds = el('ul', 'finale-bonds');
+    story.trustable.forEach(function (k) {
+      var d = (run.trust[k] || 0) - ((run.chapterMarks[0] && run.chapterMarks[0].trust[k]) || 0);
+      var li = add(el('li', 'finale-bond'));
+      li.setAttribute('data-who', k);
+      li.appendChild(window.PrivacySprite.el(k, { face: true, scale: 2, initial: story.characters[k].initial }));
+      li.appendChild(el('span', 'finale-name', story.characters[k].name));
+      li.appendChild(el('span', 'finale-word' + (d > 0 ? ' up' : d < 0 ? ' down' : ''), d > 0 ? '친해짐' : d < 0 ? '멀어짐' : '그대로'));
+      bonds.appendChild(li);
+    });
+    inner.appendChild(bonds);
+    inner.appendChild(add(el('p', 'finale-end', '엔딩 ' + end.code + ' · ' + end.title)));
+    var actions = add(el('div', 'finale-actions'));
+    var go = el('button', 'btn primary', '결과 보기');
+    go.id = 'finale-go';
+    go.type = 'button';
+    go.addEventListener('click', finaleClose);
+    actions.appendChild(go);
+    inner.appendChild(actions);
+    var skip = el('button', 'finale-skip', '건너뛰기');
+    skip.type = 'button';
+    skip.addEventListener('click', finaleClose);
+    box.appendChild(skip);
+    box.appendChild(inner);
+    finaleState = { lines: lines, go: go };
+    clearTimeout(finaleTimer);
+    if (settings.speed === 'instant' || settings.reduceMotion) { finaleAll(); return; }
+    box.focus({ preventScroll: true });
+    // 화면이 검게 꺼지는 동안 잠깐 멈췄다가, 두 문장은 천천히, 나머지는 한 줄씩
+    var i = 0, step = settings.speed === 'fast' ? 350 : 750;
+    (function next() {
+      if (!finaleState) return;
+      if (i >= lines.length) { go.focus({ preventScroll: true }); return; }
+      lines[i].classList.add('on');
+      if (i >= 2) lines[i].scrollIntoView({ block: 'nearest' });
+      i++;
+      finaleTimer = setTimeout(next, i <= 2 ? 1500 : step);
+    })();
+  }
+  function finaleAll() {
+    clearTimeout(finaleTimer);
+    if (!finaleState) return;
+    finaleState.lines.forEach(function (n) { n.classList.add('on'); });
+    finaleState.go.focus({ preventScroll: true });
+  }
+  function finaleClose() {
+    clearTimeout(finaleTimer);
+    finaleState = null;
+    var b = $('finale');
+    if (b) b.hidden = true;
+    var t = $('e-title');
+    if (t && current === 'v-ending') { t.setAttribute('tabindex', '-1'); t.focus({ preventScroll: true }); }
+  }
+
   function renderEnding(justArrived) {
     var run = progress.run;
     var end = endingOf(run.ending);
@@ -576,6 +671,7 @@
     grid.appendChild(a); grid.appendChild(b);
     st.appendChild(grid);
     show('v-ending');
+    if (justArrived) finale(run, end);
   }
 
   /* ── 선택 경로 ─────────────────────── */
@@ -756,6 +852,12 @@
     $('confirm-yes').addEventListener('click', function () { var cb = confirmCb; confirmCb = null; $('confirm').hidden = true; if (cb) cb(); });
 
     document.addEventListener('keydown', function (e) {
+      var fin = $('finale');
+      if (fin && !fin.hidden) {
+        if (e.key === 'Escape') finaleClose();
+        else if ((e.key === 'Enter' || e.key === ' ') && (e.target.tagName || '') !== 'BUTTON') { e.preventDefault(); finaleAll(); }
+        return;
+      }
       if (!$('confirm').hidden) { if (e.key === 'Escape') { confirmCb = null; closeOverlay('confirm'); } trapFocus(e, 'confirm'); return; }
       if (!$('menu').hidden) { if (e.key === 'Escape') closeOverlay('menu'); trapFocus(e, 'menu'); return; }
       if (current !== 'v-game' || e.altKey || e.ctrlKey || e.metaKey) return;

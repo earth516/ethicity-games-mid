@@ -367,6 +367,42 @@
       ok($$('.ico-quest').every(function (im) { return /quest\.png/.test(getComputedStyle(im).backgroundImage) && im.getAttribute('role') === 'img' && !!im.getAttribute('aria-label'); }), 'quest.png 사용·대체 글자 있음');
     }
 
+    else if (s === 'finale') {
+      $('#btn-new').click();
+      await play(R.D, { upto: R.D.length - 1 });
+      // 마지막 선택은 보통 속도·움직임 켬으로: 글이 차례로 떠오르는지 본다
+      $('#opt-motion').checked = true; $('#opt-motion').click(); PrivacyApp.setSpeed('normal'); await wait(); // 움직임 줄이기 끔
+      await play(R.D, { from: R.D.length - 1 });
+      var fin = $('#finale');
+      ok(!!fin && !fin.hidden && view() === 'v-ending', '엔딩 도착 → 검은 화면 연출');
+      ok(!!fin && getComputedStyle(fin).backgroundColor === 'rgb(0, 0, 0)', '검은 화면');
+      ok(!!fin && fin.getAttribute('role') === 'dialog' && document.activeElement && fin.contains(document.activeElement), '연출에 포커스(대화상자)');
+      var shown0 = $$('#finale .finale-line:not(.on)').length;
+      ok(shown0 > 0, '처음엔 글이 다 뜨지 않음(차례로 떠오름) 남은 줄 ' + shown0);
+      fin.click(); await wait(50);
+      ok($$('#finale .finale-line:not(.on)').length === 0, '누르면 남은 줄이 한꺼번에');
+      ok(/게임이 끝났습니다\./.test(fin.textContent) && /과연 당신의 선택은 어떠했을까요\?/.test(fin.textContent), '두 문장');
+      var picks = $$('#finale .finale-choice');
+      ok(picks.length === 9, '9개 사건 내 선택 ' + picks.length + '줄');
+      var st = PrivacyApp.state(), ST = window.PRIVACY_STORY;
+      var e1 = st.history.filter(function (h) { return ST.scenes[h.scene].event === 'e1'; })[0];
+      var e1text = ST.scenes[e1.scene].choices.filter(function (c) { return c.id === e1.choice; })[0].text;
+      ok(picks[0] && picks[0].textContent.indexOf(ST.events.e1.title) >= 0 && picks[0].textContent.indexOf(e1text.replace(/\{name\}/g, '').slice(0, 8)) >= 0, '첫 줄 = 정산 계좌번호 + 그때 고른 선택');
+      var bonds = $$('#finale .finale-bond');
+      var mark0 = st.chapterMarks[0].trust;
+      var okBonds = bonds.length === ST.trustable.length && bonds.every(function (b) {
+        var w = b.getAttribute('data-who'), d = st.trust[w] - (mark0[w] || 0);
+        var word = d > 0 ? '친해짐' : d < 0 ? '멀어짐' : '그대로';
+        return !!b.querySelector('.spr.face') && b.textContent.indexOf(ST.characters[w].name) >= 0 && b.textContent.indexOf(word) >= 0;
+      });
+      ok(okBonds, '친구마다 얼굴 + 친해짐/그대로/멀어짐(실제 관계 변화와 일치) ' + bonds.map(function (b) { return b.textContent; }).join(' / '));
+      ok(/엔딩 D/.test($('#finale .finale-end').textContent), '마지막에 엔딩 이름');
+      $('#finale-go').click(); await wait(50);
+      ok($('#finale').hidden && view() === 'v-ending' && /엔딩 D/.test($('#e-eyebrow').textContent), '결과 보기 → 엔딩 페이지');
+      $('#btn-end-path').click(); await wait(); $('#btn-path-back').click(); await wait();
+      ok(view() === 'v-ending' && $('#finale').hidden, '경로에서 돌아올 땐 연출 없이');
+    }
+
     else if (s === 'school-roof') {
       $('#btn-new').click(); await wait(30);
       ok(PrivacyMap.debug.roof() === true, '학교 밖(내 방)에선 학교 지붕이 덮여 있음');
