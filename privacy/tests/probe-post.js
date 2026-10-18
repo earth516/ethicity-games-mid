@@ -368,6 +368,44 @@
       ok($$('.ico-quest').every(function (im) { return /quest\.png/.test(getComputedStyle(im).backgroundImage) && im.getAttribute('role') === 'img' && !!im.getAttribute('aria-label'); }), 'quest.png 사용·대체 글자 있음');
     }
 
+    else if (s === 'smooth') {
+      $('#btn-new').click();
+      await play(R.A, { upto: 1, stopAtMap: true });
+      var SM = PrivacyMap.debug;
+      // 마을 길 가운데로 가서(카메라가 맵 끝에 막히지 않는 곳) 움직임 줄이기를 끈다
+      var r0 = SM.routeTo(30, 16) || [];
+      for (var k = 0; k < r0.length; k++) { key(ARROW[r0[k]]); key(ARROW[r0[k]], 'keyup'); var g = 0; await wait(16); while (SM.me().moving && g++ < 100) await wait(16); }
+      $('#opt-motion').checked = true; $('#opt-motion').click(); await wait(400);
+      var c0 = SM.cam();
+      ok(Math.abs(c0.x - c0.tx) < 1, '멈춰 있으면 카메라가 주인공에 맞춰짐');
+      key('ArrowRight'); SM.tick(50); // 기다리지 않고 50ms만 진행
+      var c1 = SM.cam();
+      ok(c1.tx - c1.x > 1, '걷기 시작하면 카메라가 살짝 늦게 따라옴 ' + JSON.stringify(c1));
+      ok(c1.x === Math.round(c1.x), '카메라 좌표는 정수 픽셀(흔들림 방지)');
+      key('ArrowRight', 'keyup');
+      await wait(900);
+      var c2 = SM.cam();
+      ok(Math.abs(c2.x - c2.tx) < 1, '멈추면 곧 따라잡음 ' + JSON.stringify(c2));
+      // 걷기 동작: 반 칸마다 한 프레임(한 칸에 약 2번 바뀜, 칸이 바뀌어도 이어짐). 시간 대신 걸은 칸 수로 잰다
+      var r1 = SM.routeTo(40, 20) || [];
+      for (var k1 = 0; k1 < r1.length; k1++) { key(ARROW[r1[k1]]); key(ARROW[r1[k1]], 'keyup'); var g1 = 0; await wait(16); while (SM.me().moving && g1++ < 100) await wait(16); }
+      var lastF = SM.walkFrame(), lastX = SM.me().x, fch = 0, tiles = 0;
+      key('ArrowRight');
+      for (var st = 0; st < 80; st++) { // 15ms씩 80번(=1.2초) 직접 진행
+        SM.tick(15);
+        var wf = SM.walkFrame(), mx = SM.me().x;
+        if (wf !== lastF) fch++;
+        lastF = wf;
+        if (mx !== lastX) { tiles += Math.abs(mx - lastX); lastX = mx; }
+      }
+      key('ArrowRight', 'keyup');
+      ok(tiles >= 6 && fch / tiles >= 1 && fch / tiles <= 2.6, '걷기 동작: 한 칸에 약 2번 바뀜(' + fch + '번/' + tiles + '칸)');
+      // 움직임 줄이기를 켜면 카메라는 바로 붙는다
+      $('#opt-motion').checked = false; $('#opt-motion').click(); await wait(300);
+      key('ArrowRight'); SM.tick(50); var c3 = SM.cam(); key('ArrowRight', 'keyup');
+      ok(Math.abs(c3.x - c3.tx) < 1, '움직임 줄이기면 카메라가 바로 따라붙음');
+    }
+
     else if (s === 'marker') {
       // ❗가 위 안내 상자·아래 버튼·안내 문구에 가리지 않는지(화면 좌표로 겹침 검사)
       function markerVisible(label) {

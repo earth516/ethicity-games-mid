@@ -26,6 +26,7 @@
   var o = null;                 // init 옵션
   var canvas, ctx, wrap;
   var active = false, raf = null, tmr = null, lastT = 0;
+  var camS = null, camT = 0, camTarget = { x: 0, y: 0 }, frameDt = 0; // 부드러운 카메라: 실제 위치(camS)가 목표(camTarget)를 살짝 늦게 따라감
   var mode = null, stageInfo = null, focus = null, gen = 0; // gen: show()마다 +1(지난 인사말이 새 걷기를 넘기지 않게) // focus: 장면 중 주인공을 둘 화면 위치(비율). 폰·선택 상자에 가리지 않게 // mode: 'walk'(걷기·입력) | 'stage'(장면 무대: 그리기만)
   var run = null, trig = null, targetId = null;
   var cast = [], blocked = {};
@@ -144,7 +145,7 @@
     $('m-time').textContent = trig.time;
     $('m-mission').textContent = trig.mission;
     held = []; path = null; actOnArrive = false; busy = false; bubbles = [];
-    mode = 'walk'; stageInfo = null; focus = null; gen++;
+    mode = 'walk'; stageInfo = null; focus = null; gen++; camS = null;
     lastArea = '';
     updateArea();
     say(trig.hint || '');
@@ -158,7 +159,7 @@
   // 장면 무대: 입력 없이 장소·인물·시간대만 그린다. card가 있으면 잠깐 컷 카드를 띄우고 끝나면 resolve
   function stage(st, opts) {
     opts = opts || {};
-    mode = 'stage'; stageInfo = st; trig = null; targetId = null; focus = opts.focus || null; gen++;
+    mode = 'stage'; stageInfo = st; trig = null; targetId = null; focus = opts.focus || null; gen++; camS = null;
     cast = st.cast.slice(); blocked = {};
     cast.forEach(function (c) { loadSprite(c.who, 'char_' + c.who + '.png'); });
     var look = o.playerLook();
@@ -223,6 +224,7 @@
     if (me.door) { me.x = me.door.to[0]; me.y = me.door.to[1]; me.dir = me.door.dir; say(me.door.label === '집 안으로' ? '우리 집에 들어왔다.' : '밖으로 나왔다.'); }
     me.fx = me.x; me.fy = me.y;
     me.frame = (me.frame + 1) % 4;
+    me.walked = (me.walked || 0) + 1; // 걸은 칸 수: 걷기 동작을 칸이 바뀌어도 이어 가게
     savePos();
     updateArea();
     updateHint();
@@ -408,6 +410,7 @@
     if (!active) return;
     // 경과 시간을 걸음 단위로 소비(타이머가 느리게 와도 이동 속도는 일정)
     var dt = Math.max(0, Math.min(1000, t - lastT)); lastT = t;
+    frameDt = Math.min(100, dt);
     while (me.moving && dt > 0) {
       var need = (1 - me.t) * STEP_MS;
       if (dt >= need) { dt -= need; me.t = 1; finishStep(); }
@@ -417,6 +420,8 @@
     draw(t);
     schedule();
   }
+  // 걷기 동작: 반 칸마다 한 프레임(한 칸에 2프레임), 칸이 바뀌어도 이어진다
+  function walkFrame() { return me.moving ? Math.floor(((me.walked || 0) + me.t) * 2) % 4 : 0; }
   function draw(t) {
     // Frame the complete bedroom during walking; keep scene-overlay focus unchanged.
     T = srcTile * Math.max(1, Math.round(viewW / (srcTile * 13)));
@@ -431,6 +436,16 @@
     cam.x = Math.max(-viewW * slack, Math.min(mapW - viewW * (1 - slack), me.fx * T + T / 2 - viewW * fx));
     cam.y = Math.max(-viewH * slack, Math.min(mapH - viewH * (1 - slack), me.fy * T + T / 2 - viewH * fy));
     if (mapW < viewW) cam.x = (mapW - viewW) / 2;
+    // 걷는 동안 카메라는 0.1초 남짓 늦게 미끄러지듯 따라간다(움직임 줄이기·장면·순간이동이면 바로)
+    camTarget.x = cam.x; camTarget.y = cam.y;
+    if (mode === 'walk' && !o.reduceMotion() && camS && camT === T && Math.abs(camS.x - cam.x) < viewW && Math.abs(camS.y - cam.y) < viewH) {
+      var kk = 1 - Math.exp(-frameDt / 110);
+      camS.x += (cam.x - camS.x) * kk; camS.y += (cam.y - camS.y) * kk;
+      if (Math.abs(camS.x - cam.x) < 0.5) camS.x = cam.x;
+      if (Math.abs(camS.y - cam.y) < 0.5) camS.y = cam.y;
+    } else camS = { x: cam.x, y: cam.y };
+    camT = T;
+    cam.x = Math.round(camS.x); cam.y = Math.round(camS.y); // 정수 픽셀: 그림이 반 픽셀씩 떨리지 않게
     ctx.fillStyle = '#5E8F55';
     ctx.fillRect(0, 0, viewW, viewH);
     var x0 = Math.max(0, Math.floor(cam.x / T)), y0 = Math.max(0, Math.floor(cam.y / T));
@@ -531,7 +546,7 @@
       if (schoolCovered && school.contains(c.x, c.y)) return;
       list.push({ y: c.pose === 'sleep' ? c.y - 0.5 : c.y, fn: function () { drawPerson(c.who, o.story.characters[c.who].name, c.x, c.y, c.dir, 0, c.pose); } });
     });
-    list.push({ y: me.fy + 0.01, fn: function () { drawPerson('me', o.playerName(), me.fx, me.fy, me.dir, me.moving ? Math.floor(me.t * 4) % 4 : 0); } });
+    list.push({ y: me.fy + 0.01, fn: function () { drawPerson('me', o.playerName(), me.fx, me.fy, me.dir, walkFrame()); } });
     list.sort(function (a, b) { return a.y - b.y; });
     list.forEach(function (d) { d.fn(); });
     var tint = mode === 'stage' ? stageInfo.tint : trig.tint;
@@ -741,6 +756,9 @@
       route: routeToTarget,
       nearTarget: nearTarget,
       marker: function () { return lastMarker; },
+      cam: function () { return { x: cam.x, y: cam.y, tx: camTarget.x, ty: camTarget.y }; },
+      walkFrame: walkFrame,
+      tick: function (ms) { loop(lastT + ms); }, // 검증용: 화면 루프를 정해진 시간만큼 한 번 돌림
       routeTo: function (tx, ty) { return WD.findPath({ x: me.x, y: me.y }, function (x, y) { return x === tx && y === ty; }, blocked); },
       roof: function () { var s = window.PrivacySchool; return !!(s && !s.contains(me.x, me.y)); },
       stage: function () {
