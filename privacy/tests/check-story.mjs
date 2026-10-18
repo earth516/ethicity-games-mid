@@ -342,6 +342,14 @@ const lineTotal = sceneIds.reduce((n, id) => n + (story.scenes[id].lines || []).
 console.log(`장면 ${sceneIds.length}개 · 선택 지점 ${decisionScenes.length}곳 · 선택지 ${choiceTotal}개 · 대사 ${lineTotal}줄 · 사건 ${eventIds.length}개 · 엔딩 ${story.endings.length}종`);
 console.log(`서로 다른 완주 경로: ${totalPaths.toLocaleString()}가지`);
 console.log('맵 이동 거리(최단): ' + walkLengths.join(' · '));
+// 엔딩 연출의 “아무거나 골랐다면 n%”(js/odds.js)가 실제 무작위 완주 비율과 1%p 안에서 맞는지(표본이 충분할 때)
+{
+  const ODDS = require('../js/odds.js');
+  if (SAMPLES >= 50000) for (const e of story.endings) {
+    const real = (endingCount[e.code] || 0) / SAMPLES * 100;
+    if (typeof ODDS[e.code] !== 'number' || Math.abs(ODDS[e.code] - real) > 1) errors.push('js/odds.js 엔딩 ' + e.code + ' 확률이 실제와 다름: ' + ODDS[e.code] + '% vs ' + real.toFixed(1) + '%');
+  }
+}
 console.log(`무작위 완주 ${SAMPLES.toLocaleString()}회 엔딩 분포: ` + story.endings.map((e) => `${e.code} ${((endingCount[e.code] || 0) / SAMPLES * 100).toFixed(1)}%`).join(' · '));
 for (const e of story.endings) {
   const r = routeResult[e.code];

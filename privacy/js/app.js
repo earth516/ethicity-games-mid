@@ -626,6 +626,9 @@
     });
     inner.appendChild(bonds);
     inner.appendChild(add(el('p', 'finale-end', '엔딩 ' + end.code + ' · ' + end.title)));
+    // 아무거나 골랐다면 이 엔딩에 닿을 확률(미리 계산한 값 — 플레이어 기록은 모으지 않는다)
+    var odds = (window.PRIVACY_ODDS || {})[end.code];
+    if (typeof odds === 'number') inner.appendChild(add(el('p', 'finale-odds', '아무거나 골랐다면 이 엔딩에 닿을 확률은 ' + odds + '%예요.')));
     var actions = add(el('div', 'finale-actions'));
     var go = el('button', 'btn primary', '결과 보기');
     go.id = 'finale-go';

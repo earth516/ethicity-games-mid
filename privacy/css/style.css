@@ -447,7 +447,8 @@ h2 .event-topic { display: block; margin-top: 2px; }
 .finale-word { font-weight: 700; }
 .finale-word.up { color: #7FD8C9; }
 .finale-word.down { color: #8F9893; }
-.finale-end { font-family: var(--pixel); font-size: 1.2rem; margin: 0 0 16px; }
+.finale-end { font-family: var(--pixel); font-size: 1.2rem; margin: 0 0 6px; }
+.finale-odds { color: #C9CFCB; font-size: .95rem; margin: 0 0 20px; }
 .finale-skip {
   position: fixed; top: 12px; right: 12px; z-index: 61; padding: 4px 12px; border-radius: 8px; cursor: pointer;
   background: none; border: 1px solid #555; color: #C9CFCB; font: inherit; font-size: .85rem;

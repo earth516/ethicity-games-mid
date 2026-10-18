@@ -592,6 +592,7 @@
       });
       ok(okBonds, '친구마다 얼굴 + 친해짐/그대로/멀어짐(실제 관계 변화와 일치) ' + bonds.map(function (b) { return b.textContent; }).join(' / '));
       ok(/엔딩 D/.test($('#finale .finale-end').textContent), '마지막에 엔딩 이름');
+      ok(!!$('#finale .finale-odds') && $('#finale .finale-odds').textContent.indexOf(window.PRIVACY_ODDS.D + '%') >= 0 && /아무거나 골랐다면/.test($('#finale .finale-odds').textContent), '“아무거나 골랐다면” 확률: ' + ($('#finale .finale-odds') || {}).textContent);
       $('#finale-go').click(); await wait(50);
       ok($('#finale').hidden && view() === 'v-ending' && /엔딩 D/.test($('#e-eyebrow').textContent), '결과 보기 → 엔딩 페이지');
       $('#btn-end-path').click(); await wait(); $('#btn-path-back').click(); await wait();
