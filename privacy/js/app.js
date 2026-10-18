@@ -122,9 +122,16 @@
   // 맵 주인공 모습: 공통 캐릭터 코드에 매핑이 있으면 그것, 없으면 학생이 고른 것(이 게임 설정에만 저장)
   function commonLook() { var m = CFG.playerLooks || {}; return player.character && (m[player.character] === 'm' || m[player.character] === 'f') ? m[player.character] : null; }
   function playerLook() { return commonLook() || settings.look; }
+  // 시작 화면의 두 주인공 카드. 공통 캐릭터로 모습이 정해져 있으면 그 주인공만 보여 주고 고르기는 막는다
   function renderLookPick() {
-    $('look-pick').hidden = !!commonLook();
-    Array.prototype.forEach.call(document.querySelectorAll('input[name=look]'), function (r) { r.checked = r.value === settings.look; });
+    var fixed = commonLook();
+    Array.prototype.forEach.call(document.querySelectorAll('#look-pick .hero-card'), function (card) {
+      var r = card.querySelector('input');
+      card.hidden = !!fixed && r.value !== fixed;
+      r.disabled = !!fixed;
+      r.checked = r.value === (fixed || settings.look);
+    });
+    $('look-pick').classList.toggle('fixed', !!fixed);
     $('look-msg').hidden = true;
   }
   function needLook() {

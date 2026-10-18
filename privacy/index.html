@@ -18,48 +18,58 @@
   <main id="main" class="app">
 
     <!-- 1. 시작 -->
-    <section id="v-start" class="view" aria-labelledby="start-title">
-      <div class="start-phone" aria-hidden="true">
-        <div class="push"><span class="push-app">2학년 3반 축제준비방 · 28명</span><span class="push-text">하윤: 재료비 정산할게! 각자 계좌 알려 줘~</span></div>
-        <div class="push"><span class="push-app">스냅로그</span><span class="push-text">도현님이 회원님의 사진에 태그했습니다</span></div>
-        <div class="push"><span class="push-app">서아</span><span class="push-text">이거 아무한테도 말하지 마. 진짜로.</span></div>
-      </div>
-      <p class="eyebrow">프라이버시 선택 게임</p>
-      <h1 id="start-title">공유한 순간</h1>
-      <p class="lead">단톡방 28명, 스토리 조회 312회, 캡처 1장.<br>같은 사진도 <strong>누구에게</strong> 보내느냐에 따라 전혀 다른 일이 된다.</p>
-      <p class="lead-sub">축제까지 나흘. 너는 무엇을, 누구에게 보낼까?</p>
+    <section id="v-start" class="view title" aria-labelledby="start-title">
+      <header class="title-head">
+        <p class="eyebrow">프라이버시 선택 게임</p>
+        <h1 id="start-title" class="logo">공유한 순간</h1>
+        <p class="lead">단톡방 28명, 스토리 조회 312회, 캡처 1장.<br>같은 사진도 <strong>누구에게</strong> 보내느냐에 따라 전혀 다른 일이 된다.</p>
+      </header>
 
-      <div class="player-chip" id="player-chip">
-        <img id="player-avatar" class="avatar-img" src="assets/avatar-default.svg" alt="임시 아바타" width="44" height="44">
-        <div class="player-text">
-          <span class="player-label">이번 주인공</span>
-          <span id="player-name" class="player-name"></span>
-        </div>
-      </div>
-      <p id="player-note" class="small mute" hidden></p>
-      <fieldset id="look-pick" class="look-pick" hidden>
-        <legend>맵에서 걸어 다닐 내 모습</legend>
-        <label class="look-opt"><input type="radio" name="look" value="m"><span class="look-icon look-m" aria-hidden="true"></span><span>남학생</span></label>
-        <label class="look-opt"><input type="radio" name="look" value="f"><span class="look-icon look-f" aria-hidden="true"></span><span>여학생</span></label>
-        <p id="look-msg" class="small look-msg" role="alert" hidden>먼저 모습을 골라 주세요.</p>
+      <!-- 메인 비주얼 = 주인공 고르기: 두 주인공을 같은 크기로 나란히 -->
+      <fieldset id="look-pick" class="hero-pick">
+        <legend class="hero-legend">축제까지 나흘. 누구로 걸어갈까?</legend>
+        <label class="hero-card" data-look="m">
+          <input type="radio" name="look" value="m">
+          <img src="assets/landing/hero-boy.png" alt="파란 후드에 노란 가방을 멘 남학생 주인공" width="1024" height="1536" decoding="async">
+          <span class="hero-name">남학생</span>
+        </label>
+        <label class="hero-card" data-look="f">
+          <input type="radio" name="look" value="f">
+          <img src="assets/landing/hero-girl.png" alt="파란 후드에 노란 가방을 멘 포니테일 여학생 주인공" width="1024" height="1536" decoding="async">
+          <span class="hero-name">여학생</span>
+        </label>
+        <p id="look-msg" class="small look-msg" role="alert" hidden>먼저 주인공을 골라 주세요.</p>
       </fieldset>
 
       <div class="start-actions">
         <button id="btn-continue" class="btn primary" type="button" hidden>이어 하기</button>
         <button id="btn-new" class="btn primary" type="button">시작하기</button>
       </div>
-      <p id="last-result" class="small mute" hidden></p>
-      <div class="start-links" id="start-links" hidden>
-        <button id="btn-start-path" class="btn link" type="button">지난 선택 경로</button>
-        <button id="btn-start-reflect" class="btn link" type="button">성찰 질문</button>
-      </div>
 
-      <ul class="facts">
-        <li>약 15~20분 · 프롤로그 → 3개 장 → 에필로그</li>
-        <li>선택 뒤에 정답·오답을 보여 주지 않아요. 결과는 이야기로 돌아와요.</li>
-        <li>게임 속 이름·번호·계좌·학교는 모두 가짜예요. 실제 개인정보를 입력하는 곳은 없어요.</li>
-        <li>소리 없이 플레이할 수 있어요. 숫자 키 <kbd>1</kbd>~<kbd>4</kbd>로 고르고 <kbd>Enter</kbd>로 넘겨요.</li>
-      </ul>
+      <div class="title-foot">
+        <div class="player-chip" id="player-chip">
+          <img id="player-avatar" class="avatar-img" src="assets/avatar-default.svg" alt="임시 아바타" width="36" height="36">
+          <div class="player-text">
+            <span class="player-label">이번 주인공</span>
+            <span id="player-name" class="player-name"></span>
+          </div>
+        </div>
+        <p id="player-note" class="small mute" hidden></p>
+        <p id="last-result" class="small mute" hidden></p>
+        <div class="start-links" id="start-links" hidden>
+          <button id="btn-start-path" class="btn link" type="button">지난 선택 경로</button>
+          <button id="btn-start-reflect" class="btn link" type="button">성찰 질문</button>
+        </div>
+        <details class="facts-box">
+          <summary>게임 안내</summary>
+          <ul class="facts">
+            <li>약 15~20분 · 프롤로그 → 3개 장 → 에필로그</li>
+            <li>선택 뒤에 정답·오답을 보여 주지 않아요. 결과는 이야기로 돌아와요.</li>
+            <li>게임 속 이름·번호·계좌·학교는 모두 가짜예요. 실제 개인정보를 입력하는 곳은 없어요.</li>
+            <li>소리 없이 플레이할 수 있어요. 방향키·<kbd>Space</kbd>로 걷고 말 걸기, 숫자 키 <kbd>1</kbd>~<kbd>4</kbd>로 고르고 <kbd>Enter</kbd>로 넘겨요.</li>
+          </ul>
+        </details>
+      </div>
     </section>
 
     <!-- 2. 무대: 맵 위에서 걷기·장면·장 전환이 모두 벌어진다 -->

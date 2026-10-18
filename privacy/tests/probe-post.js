@@ -292,6 +292,43 @@
       ok(pr.top > sr.top + 60, '폰 위로 맵이 보임');
     }
 
+    else if (s === 'title') {
+      ok(view() === 'v-start', '시작 화면');
+      ok(!$('.start-phone'), '메신저 푸시 알림 장식 없음');
+      ok(/단톡방 28명, 스토리 조회 312회, 캡처 1장/.test($('#v-start').textContent), '훅 문장 유지');
+      var imgs = $$('#look-pick .hero-card img');
+      ok(imgs.length === 2 && /hero-boy\.png$/.test(imgs[0].getAttribute('src')) && /hero-girl\.png$/.test(imgs[1].getAttribute('src')), '두 주인공 일러스트');
+      var gi = 0; while (imgs.some(function (im) { return !im.complete; }) && gi++ < 100) await wait(30);
+      var r0 = imgs[0].getBoundingClientRect(), r1 = imgs[1].getBoundingClientRect();
+      ok(Math.abs(r0.width - r1.width) < 1 && Math.abs(r0.height - r1.height) < 1 && r0.height >= 150, '두 주인공 같은 비중 ' + [r0.width, r0.height, r1.width, r1.height].map(Math.round));
+      ok(Math.abs(r0.top - r1.top) < 1, '나란히 배치');
+      ok($$('input[name=look]').length === 2 && $$('.hero-card input[name=look]').length === 2, '카드 자체가 고르기(라디오)');
+      // 첫 화면 안에 시작 버튼: 휴대폰·노트북 크기 iframe
+      var sizes = [[375, 667], [1280, 720]];
+      for (var si = 0; si < sizes.length; si++) {
+        var fr = document.createElement('iframe');
+        fr.style.cssText = 'position:absolute;left:0;top:0;border:0;width:' + sizes[si][0] + 'px;height:' + sizes[si][1] + 'px';
+        fr.src = 'index.html';
+        document.body.appendChild(fr);
+        await new Promise(function (r) { fr.onload = r; });
+        var fd = fr.contentDocument, fg = 0;
+        var fimgs = Array.prototype.slice.call(fd.querySelectorAll('#look-pick .hero-card img'));
+        while (fimgs.some(function (im) { return !im.complete; }) && fg++ < 100) await wait(30);
+        await wait(50);
+        var bb = fd.getElementById('btn-new').getBoundingClientRect();
+        var h0 = fimgs[0].getBoundingClientRect(), h1 = fimgs[1].getBoundingClientRect();
+        ok(bb.bottom <= sizes[si][1] && bb.top > 0, sizes[si].join('×') + ': 시작 버튼이 첫 화면 안 (아래끝 ' + Math.round(bb.bottom) + ')');
+        ok(Math.abs(h0.height - h1.height) < 1 && Math.abs(h0.top - h1.top) < 1 && h0.right <= sizes[si][0] && h1.right <= sizes[si][0] + 1, sizes[si].join('×') + ': 두 주인공 나란히·같은 크기·가로 넘침 없음');
+        ok(fd.documentElement.scrollWidth <= sizes[si][0] + 1, sizes[si].join('×') + ': 가로 스크롤 없음');
+        fr.remove();
+      }
+      // 고르고 시작
+      $$('input[name=look]')[0].click(); await wait();
+      ok($$('.hero-card')[0].matches('.hero-card:has(input:checked)'), '고른 카드 표시');
+      $('#btn-new').click(); await wait(30);
+      ok(view() === 'v-map', '시작하면 등교 맵');
+    }
+
     else if (s === 'map-resume') {
       if (P.phase === 0) {
         $('#btn-new').click();

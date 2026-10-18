@@ -73,44 +73,68 @@ h1:focus { outline: none; }
   padding: 10px 16px; font-size: .95rem;
 }
 
-/* ── 시작 ───────────── */
-.start-phone { display: grid; gap: 8px; margin: 8px 0 32px; }
-.push {
-  display: grid; gap: 2px;
-  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-out);
-  padding: 10px 14px; box-shadow: 0 1px 2px rgba(22, 32, 31, .05);
-}
-.push:nth-child(2) { margin-left: 16px; }
-.push:nth-child(3) { margin-left: 32px; }
-.push-app { font-size: .8rem; font-weight: 600; color: var(--text-mute); }
-.push-text { font-size: .98rem; }
+/* ── 시작(타이틀): 로고·훅 → 두 주인공 고르기(메인 비주얼) → 시작 버튼이 첫 화면 안에 ───────────── */
+body[data-view="v-start"] .app { max-width: 52rem; padding-top: 20px; padding-bottom: 32px; }
 .eyebrow { font-size: .875rem; font-weight: 600; color: var(--accent); margin: 0 0 4px; }
 .lead { font-size: 1.15rem; margin-bottom: 8px; }
 .lead strong { color: var(--accent); }
 .lead-sub { color: var(--text-mute); }
-.player-chip {
-  display: flex; align-items: center; gap: 12px;
-  margin: 24px 0 8px; padding: 10px 14px;
-  background: var(--surface); border-radius: var(--radius-out);
-  max-width: 100%;
+.title-head { margin-bottom: 12px; }
+.logo { font-family: var(--pixel); font-weight: 400; font-size: clamp(2.2rem, 7vw, 3.2rem); line-height: 1.25; letter-spacing: .02em; margin: 0 0 6px; }
+.title .lead { margin: 0; }
+
+.hero-pick { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.hero-pick.fixed { grid-template-columns: 1fr; max-width: 24rem; }
+.hero-legend { grid-column: 1 / -1; padding: 0; margin: 0; font-weight: 700; }
+.hero-card {
+  position: relative; display: grid; justify-items: center; gap: 4px; cursor: pointer;
+  padding: 8px 8px 10px; border: 2px solid var(--border); border-radius: var(--radius-out);
+  background: var(--surface);
 }
-.avatar-img { width: 44px; height: 44px; border-radius: 50%; flex: none; }
-.player-text { display: grid; min-width: 0; }
-.player-label { font-size: .8rem; color: var(--text-mute); }
+.hero-card img {
+  /* 칸 높이 = min(그림 비율 2:3, 화면 높이에 맞춘 상한) → 휴대폰에서 빈 공간 없이, 노트북에서 시작 버튼이 첫 화면 안에 */
+  display: block; width: 100%; height: auto; aspect-ratio: 2 / 3; max-height: clamp(150px, calc(100dvh - 400px), 420px);
+  object-fit: contain; object-position: center bottom;
+}
+.hero-card input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.hero-name { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
+.hero-name::before {
+  content: ""; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--accent); background: var(--card); flex: none;
+}
+.hero-card:hover { border-color: var(--accent); }
+.hero-card:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.hero-card:has(input:checked) .hero-name::before { background: var(--accent); box-shadow: inset 0 0 0 3px var(--card); }
+.hero-card:has(input:checked)::after {
+  content: "✓"; position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); font-weight: 800;
+}
+.hero-card:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }
+.hero-pick.fixed .hero-card { cursor: default; }
+.look-msg { grid-column: 1 / -1; margin: 0; color: var(--danger); }
+
+.start-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0 0; }
+.title .start-actions .btn { min-width: 12rem; min-height: 52px; font-size: 1.05rem; }
+.title-foot { margin-top: 32px; display: grid; gap: 8px; }
+.player-chip {
+  display: flex; align-items: center; gap: 10px; padding: 6px 12px;
+  background: var(--surface); border-radius: var(--radius-out); max-width: 100%; justify-self: start;
+}
+.avatar-img { width: 36px; height: 36px; border-radius: 50%; flex: none; }
+.player-text { display: grid; min-width: 0; line-height: 1.4; }
+.player-label { font-size: .78rem; color: var(--text-mute); }
 .player-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.look-pick { border: 1px solid var(--border); border-radius: var(--radius-out); padding: 8px 12px 12px; margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
-.look-pick legend { font-size: .9rem; font-weight: 600; padding: 0 4px; }
-.look-opt { flex: 1 1 8rem; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-in); background: var(--card); cursor: pointer; font-weight: 600; }
-.look-opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
-.look-opt input { width: 20px; height: 20px; accent-color: var(--accent); }
-.look-icon { width: 28px; height: 28px; border-radius: 50%; background: #F2D2B6; position: relative; flex: none; }
-.look-icon::before { content: ""; position: absolute; left: 2px; right: 2px; top: -2px; height: 12px; border-radius: 12px 12px 4px 4px; background: #4A3426; }
-.look-f::after { content: ""; position: absolute; right: -7px; top: 4px; width: 10px; height: 16px; border-radius: 6px; background: #4A3426; }
-.look-msg { width: 100%; margin: 0; color: var(--danger); }
-.start-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 24px 0 8px; }
 .start-links { display: flex; gap: 16px; }
-.facts { margin: 48px 0 0; padding: 16px 16px 16px 36px; background: var(--surface); border-radius: var(--radius-out); color: var(--text-mute); font-size: .95rem; }
+.facts-box summary { cursor: pointer; font-weight: 600; color: var(--text-mute); }
+.facts { margin: 8px 0 0; padding: 16px 16px 16px 36px; background: var(--surface); border-radius: var(--radius-out); color: var(--text-mute); font-size: .95rem; }
 .facts li + li { margin-top: 4px; }
+
+@media (max-width: 480px) {
+  body[data-view="v-start"] .app { padding-top: 14px; }
+  .title .lead { font-size: 1rem; line-height: 1.65; }
+  .hero-pick { gap: 8px; }
+  .hero-card { padding: 6px 4px 8px; }
+  .title .start-actions .btn { flex: 1 1 100%; }
+}
 
 /* ── 본편 ───────────── */
 body[data-view="v-game"] .app { padding-top: 12px; padding-bottom: 16px; }
