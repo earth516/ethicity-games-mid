@@ -33,8 +33,13 @@
       localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.settings.v1', instant); break;
     case 'corrupt-progress': localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.progress.v1', '{"v":1,"run":'); localStorage.setItem('ethicity.privacy.settings.v1', instant); break;
     case 'stale-progress': localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.progress.v1', '{"v":1,"run":{"v":1,"screen":"scene","scene":"사라진_장면","stats":{},"trust":{},"flags":{},"history":[],"visited":[]},"explored":{"pro_1":["sns"]},"endingsSeen":["B"]}'); localStorage.setItem('ethicity.privacy.settings.v1', instant); break;
+    case 'no-sprites': // 캐릭터 시트를 못 불러오는 환경 흉내
+      var srcDesc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+      Object.defineProperty(HTMLImageElement.prototype, 'src', { configurable: true, get: function () { return srcDesc.get.call(this); },
+        set: function (v) { srcDesc.set.call(this, /char_|minjun_sleep/.test(String(v)) ? 'assets/__missing__.png' : v); } });
+      localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.settings.v1', instant); break;
     case 'normal-speed': localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.settings.v1', '{"look":"m"}'); break;
-    case 'shot-map': case 'shot-road': case 'shot-start': case 'shot-game': case 'shot-react': case 'shot-ending': case 'shot-path':
+    case 'shot-map': case 'shot-road': case 'shot-start': case 'shot-game': case 'shot-react': case 'shot-ending': case 'shot-path': case 'shot-chapter':
       window.__probe.PLAYER = JSON.stringify({ character: 'char_03', nickname: '반짝이는 고래와 은하수 너머의 친구들' });
       localStorage.setItem('ethicity.player', window.__probe.PLAYER); localStorage.setItem('ethicity.privacy.settings.v1', instant); break;
     default: localStorage.setItem('ethicity.player', PLAYER); localStorage.setItem('ethicity.privacy.settings.v1', instant);

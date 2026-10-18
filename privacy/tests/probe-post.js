@@ -29,7 +29,7 @@
       await wait(opts.delay || 0);
       var v = view();
       if (v === 'v-ending') break;
-      if (v === 'v-chapter') { $('#btn-chapter-go').click(); continue; }
+      if (v === 'v-chapter') { if (opts.stopAtChapter != null && i >= opts.stopAtChapter) return i; $('#btn-chapter-go').click(); continue; }
       if (v === 'v-map') {
         if (opts.upto != null && opts.stopAtMap && i >= opts.upto) return i;
         if (opts.walk) await walkToTarget(opts);
@@ -329,6 +329,30 @@
       ok(view() === 'v-map', '시작하면 등교 맵');
     }
 
+    else if (s === 'chapter-face') {
+      $('#btn-new').click();
+      var ci = await play(R.A, { stopAtChapter: 6 });
+      ok(ci === 6 && view() === 'v-chapter' && !$('#stage').hidden, '1장 끝: 장 카드가 맵 무대 위에');
+      var lis = $$('#c-summary .trust-list li');
+      ok(lis.length >= 4 && lis.every(function (li) { return li.lastElementChild && li.lastElementChild.matches('.spr.face'); }), '관계 줄마다 오른쪽 끝에 얼굴 (' + lis.length + '줄)');
+      ok(lis.every(function (li) { return !!li.querySelector('.trust-mark'); }), '가까워짐·그대로·멀어짐 표식');
+      var mj = $('#c-summary .trust-list li[data-who="minjun"] .spr.face');
+      var gl = 0; while (mj && !mj.classList.contains('loaded') && gl++ < 100) await wait(30);
+      ok(!!mj && mj.getAttribute('data-who') === 'minjun' && /char_minjun\.png/.test(mj.style.backgroundImage), '민준 줄엔 민준 시트에서 자른 얼굴');
+      ok(!!mj && mj.getBoundingClientRect().width >= 60 && mj.getBoundingClientRect().right <= $('#c-summary .trust-list').getBoundingClientRect().right + 1, '얼굴 2배 크기, 줄 안에 들어감');
+      $('#btn-chapter-go').click();
+      await play(R.A, { from: 6 });
+      ok($$('#e-stats .trust-list li .spr.face').length >= 4, '엔딩 관계 줄에도 얼굴');
+    }
+
+    else if (s === 'no-sprites') {
+      $('#btn-new').click();
+      await play(R.C);
+      ok(view() === 'v-ending', '그림을 못 불러와도 엔딩까지 진행');
+      var fb = $$('#e-stats .trust-list .spr.face');
+      ok(fb.length >= 4 && fb.every(function (n) { return n.classList.contains('fallback') && n.textContent.length > 0; }), '얼굴 대신 이니셜 ' + fb.map(function (n) { return n.textContent; }));
+    }
+
     else if (s === 'map-resume') {
       if (P.phase === 0) {
         $('#btn-new').click();
@@ -512,6 +536,7 @@
         await wait(300);
         return;
       }
+      if (s === 'shot-chapter') { $('#btn-new').click(); await play(R.A, { stopAtChapter: 6 }); await wait(500); $('#c-summary .change-grid').scrollIntoView({ block: 'center' }); return; }
       var stop = { 'shot-start': -1, 'shot-game': 9, 'shot-react': 9, 'shot-ending': null, 'shot-path': null }[s];
       if (stop === -1) return;
       $('#btn-new').click();

@@ -20,7 +20,7 @@
     '#': '#9AA5A6', c: '#EADCBD', l: '#E3D8C6', h: '#DADFE0', d: '#C9A66B', g: '#A9D48C', p: '#E4CC98',
     y: '#ECDDB4', f: '#A9D48C', T: '#A9D48C', w: '#7FC3E4', H: '#C98F6B', o: '#7A4E2E', r: '#E9D4A3', x: '#7A4E2E'
   };
-  var CHAR_COLOR = { me: '#0F766E', hayun: '#4E6FC9', dohyun: '#D06A2E', seoa: '#B04F8C', minjun: '#3F7F5C', teacher: '#6E6150', friend: '#7B808A' };
+  var CHAR_COLOR = window.PrivacySprite.COLOR; // 관계 보고 얼굴 대체색과 같은 색
   var TINT = { day: null, evening: 'rgba(255,181,100,0.08)', night: 'rgba(41,63,118,0.18)' };
 
   var o = null;                 // init 옵션

@@ -481,8 +481,14 @@
     story.trustable.forEach(function (k) {
       var d = (toTrust[k] || 0) - (fromTrust[k] || 0);
       var li = el('li');
+      li.setAttribute('data-who', k);
       li.appendChild(el('span', 'trust-name', story.characters[k].name));
       li.appendChild(el('span', 'trust-val' + (d > 0 ? ' up' : d < 0 ? ' down' : ''), TRUST_WORD(d)));
+      var mark = el('span', 'trust-mark' + (d > 0 ? ' up' : d < 0 ? ' down' : ''), d > 0 ? '♥' : d < 0 ? '💧' : '–');
+      mark.setAttribute('aria-hidden', 'true');
+      li.appendChild(mark);
+      // 그 친구 얼굴(캐릭터 시트에서 머리만 잘라 2배) — 줄 오른쪽 끝
+      li.appendChild(window.PrivacySprite.el(k, { face: true, scale: 2, initial: story.characters[k].initial }));
       ul.appendChild(li);
     });
     return ul;

@@ -7,7 +7,7 @@ import path from 'node:path';
 import { startServer } from './serve.mjs';
 
 const EDGE = process.env.EDGE || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
-const ALL = ['title', 'frame', 'opening', 'resume-old', 'stage-mode', 'stage-phone', 'stage-flow', 'stage-resize', 'walk-A', 'tap', 'map-resume', 'route-A', 'route-B-key', 'route-C', 'route-D', 'no-player', 'damaged-player', 'wrong-player', 'xss',
+const ALL = ['title', 'frame', 'opening', 'resume-old', 'stage-mode', 'stage-phone', 'stage-flow', 'stage-resize', 'chapter-face', 'no-sprites', 'walk-A', 'tap', 'map-resume', 'route-A', 'route-B-key', 'route-C', 'route-D', 'no-player', 'damaged-player', 'wrong-player', 'xss',
   'resume', 'blocked', 'corrupt-progress', 'stale-progress', 'wipe', 'restart-keeps', 'normal-speed'];
 const list = process.argv.slice(2).length ? process.argv.slice(2) : ALL;
 
