@@ -180,6 +180,76 @@
       cast: [{ who: 'teacher', x: 6, y: 1, dir: 'down' }].concat(schoolDay()) }
   };
 
+  /* ── 장면 무대 ─────────────────────
+   * 모든 장면은 맵 위 한 장소에서 벌어진다. 폰·모니터는 그 장소 위에 떠오른다.
+   *   STAGES[장면 id] = { place, tint, cast:[{who,x,y,dir,pose?}], me?:{x,y,dir}, device?, card?, bubbles?:[{on,who,text}] }
+   *   - device 생략: view.type으로 정함(group·dm·sns → phone, pc·ai → monitor, place → none)
+   *   - card: 앞 장면과 장소가 바뀔 때 잠깐 띄우는 문구
+   *   - bubbles: 장면의 한 줄(on = 그 줄에 들어 있는 글자)이 나타날 때 who 머리 위에 text
+   *   - 폰 장면에서 같은 공간 친구가 보낸 메시지는 원문 대신 '📱…'만 머리 위에 뜬다(개인톡을 소리 내 말한 것처럼 보이지 않게)
+   */
+  var PLACES = {
+    classroom: { name: '2학년 3반 교실', me: { x: 8, y: 6, dir: 'up' } },
+    room: { name: '내 방', me: { x: 32, y: 4, dir: 'down' } },
+    road: { name: '마을 길', me: { x: 33, y: 16, dir: 'right' } },
+    gate: { name: '교문', me: { x: 21, y: 16, dir: 'left' } },
+    store: { name: '매점 앞', me: { x: 5, y: 13, dir: 'left' } },
+    library: { name: '도서관', me: { x: 17, y: 5, dir: 'up' } },
+    hall: { name: '복도', me: { x: 10, y: 9, dir: 'down' } },
+    booth: { name: '운동장 축제 부스', me: { x: 16, y: 20, dir: 'right' } }
+  };
+  var classmates = [
+    { who: 'hayun', x: 5, y: 4, dir: 'down' }, { who: 'dohyun', x: 8, y: 2, dir: 'left' },
+    { who: 'seoa', x: 3, y: 1, dir: 'down' }, { who: 'minjun', x: 9, y: 6, dir: 'left' }
+  ];
+  function only(list, whos) { return list.filter(function (c) { return whos.indexOf(c.who) >= 0; }); }
+  var ATDESK = { x: 36, y: 4, dir: 'up' }; // 내 방 책상 컴퓨터 앞
+  var BOOTH = [{ who: 'dohyun', x: 17, y: 20, dir: 'left' }, { who: 'friend', x: 18, y: 20, dir: 'left' },
+    { who: 'minjun', x: 13, y: 19, dir: 'down' }, { who: 'hayun', x: 15, y: 19, dir: 'down' }, { who: 'seoa', x: 20, y: 19, dir: 'left' }];
+
+  var STAGES = {
+    pro_1: { place: 'classroom', tint: 'day', card: '방과 후 · 오후 5:30 — 축제 준비 중', me: { x: 5, y: 5, dir: 'up' }, cast: classmates,
+      bubbles: [{ on: '다 올려야지', who: 'seoa', text: '…' }, { on: '너는 뭐 맡을래', who: 'hayun', text: '👀' }] },
+    c1_e1_a: { place: 'room', tint: 'evening', cast: [] },
+    c1_e1_b: { place: 'room', tint: 'evening', cast: [] },
+    c1_e2_a: { place: 'classroom', tint: 'day', me: { x: 8, y: 6, dir: 'left' },
+      cast: [{ who: 'minjun', x: 7, y: 6, dir: 'up', pose: 'sleep' }, { who: 'dohyun', x: 6, y: 6, dir: 'right' },
+        { who: 'hayun', x: 6, y: 1, dir: 'down' }, { who: 'seoa', x: 2, y: 1, dir: 'down' }] },
+    c1_e2_b: { place: 'room', tint: 'night', card: '그날 밤 · 내 방', cast: [] },
+    c1_e2_d: { place: 'road', tint: 'day', card: 'D-2 아침 · 등굣길', cast: [] },
+    c1_e3_a: { place: 'room', tint: 'night', cast: [] },
+    c1_e3_b: { place: 'gate', tint: 'day', card: 'D-1 아침 · 교문 앞', cast: [{ who: 'hayun', x: 16, y: 17, dir: 'down' }] },
+    c1_e3_ask: { place: 'classroom', tint: 'day', card: 'D-1 · 교실', cast: only(classmates, ['hayun', 'seoa']),
+      bubbles: [{ on: '고마워. 내가 정한 만큼만', who: 'seoa', text: '🙂' }] },
+    c1_e3_anon: { place: 'classroom', tint: 'day', card: 'D-1 · 교실', cast: only(classmates, ['hayun', 'seoa', 'dohyun']),
+      bubbles: [{ on: '역할 바꿨어', who: 'seoa', text: '😌' }] },
+    c1_e3_cap: { place: 'classroom', tint: 'day', card: 'D-1 점심 · 교실', cast: only(classmates, ['hayun', 'seoa', 'dohyun']),
+      bubbles: [{ on: '…화나. 아무한테도', who: 'seoa', text: '💢' }] },
+    c2_e4_a: { place: 'store', tint: 'evening', cast: [{ who: 'dohyun', x: 4, y: 13, dir: 'right' }],
+      bubbles: [{ on: '누가 만든 거래', who: 'dohyun', text: '이거 봐 ㅋㅋ' }, { on: '나 보낸 거 지울게', who: 'dohyun', text: '…' }] },
+    c2_e4_b: { place: 'road', tint: 'evening', card: '그날 저녁 · 집에 가는 길', cast: [] },
+    c2_e5_a: { place: 'room', tint: 'night', me: ATDESK, pcOn: true, cast: [] },
+    c2_e5_b: { place: 'room', tint: 'night', me: ATDESK, pcOn: true, cast: [] },
+    c2_e6_a: { place: 'library', tint: 'day', cast: [{ who: 'friend', x: 18, y: 5, dir: 'left' }] },
+    c2_e6_b: { place: 'library', tint: 'day', cast: [{ who: 'friend', x: 18, y: 5, dir: 'left' }] },
+    c2_e6_c: { place: 'hall', tint: 'day', card: '1교시 뒤 · 복도', cast: [{ who: 'dohyun', x: 12, y: 8, dir: 'down' }],
+      bubbles: [{ on: '아까 진짜 고마웠어', who: 'dohyun', text: '🙏' }, { on: '다음부터는 진짜 그러지 마라', who: 'dohyun', text: '😠' }] },
+    c3_e7_a: { place: 'booth', tint: 'day', cast: BOOTH,
+      bubbles: [{ on: '해 해', who: 'friend', text: 'ㅋㅋㅋ' }, { on: '다음은 내 차례다', who: 'dohyun', text: '👀' }] },
+    c3_e7_small: { place: 'booth', tint: 'day', card: '그날 오후 · 운동장', cast: only(BOOTH, ['minjun', 'dohyun']),
+      bubbles: [{ on: '나눔 아직 돼요', who: 'minjun', text: '😟' }] },
+    c3_e7_b: { place: 'booth', tint: 'day', card: '그날 오후 · 운동장', cast: only(BOOTH, ['minjun', 'dohyun']),
+      bubbles: [{ on: '좀 무서워', who: 'minjun', text: '😰' }] },
+    c3_e8_a: { place: 'room', tint: 'evening', me: ATDESK, pcOn: true, cast: [] },
+    c3_e8_b: { place: 'room', tint: 'night', cast: [] },
+    c3_e9_a: { place: 'classroom', tint: 'day', cast: classmates,
+      bubbles: [{ on: '다들 퍼 가 주세요', who: 'seoa', text: '…!' }, { on: '당하고만 있으면 안 돼', who: 'hayun', text: '😤' }] },
+    c3_e9_b: { place: 'classroom', tint: 'day', card: '점심시간 · 교실', cast: only(classmates, ['hayun', 'seoa']),
+      bubbles: [{ on: '그냥 넘어가면 억울한데', who: 'hayun', text: '😣' }] },
+    ep_1: { place: 'classroom', tint: 'day', me: { x: 7, y: 2, dir: 'left' },
+      cast: [{ who: 'teacher', x: 6, y: 1, dir: 'down' }].concat(classmates) }
+  };
+
   /* ── ❗가 아닌 인물에게 말 걸 때 ─────── */
   var IDLE = {
     hayun: [
@@ -275,7 +345,7 @@
   var WORLD = {
     W: W, H: H, grid: grid, TILES: TILES, DOORS: DOORS, OBJECTS: OBJECTS, SPAWNS: SPAWNS, INDOOR: INDOOR,
     indoor: function (xx, yy) { return xx >= INDOOR.x && xx < INDOOR.x + INDOOR.w && yy >= INDOOR.y && yy < INDOOR.y + INDOOR.h; },
-    triggers: TRIGGERS, idle: IDLE, DIRS: DIRS,
+    triggers: TRIGGERS, idle: IDLE, DIRS: DIRS, PLACES: PLACES, STAGES: STAGES,
     tile: tile, objectAt: objectAt, walkable: walkable, stepFrom: stepFrom,
     findPath: findPath, adjacentTo: adjacentTo, areaName: areaName,
     object: function (id) { return OBJECTS.filter(function (o) { return o.id === id; })[0]; }

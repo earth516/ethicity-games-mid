@@ -257,6 +257,39 @@ for (const id of TRIGGER_ORDER) {
   if (p) err('교문을 지나지 않고 집에 갈 수 있는 길이 있음');
 }
 
+// ── 6c. 장면 무대 검사 ─────────────────────
+// 모든 장면은 맵 위 한 장소에서 벌어진다: 장소·인물 위치·말풍선 기준 줄이 실제로 맞는지
+function sceneTexts(id) {
+  const sc = story.scenes[id], out = [];
+  const add = (l) => { const n = E.normLine(l, story); if (n && n.text) out.push(n.text); };
+  (sc.lines || []).forEach(add);
+  for (const c of sc.choices || []) { if (c.say) out.push(c.say); (c.react || []).forEach(add); }
+  return out;
+}
+const STAGES = WORLD.STAGES || {}, PLACES = WORLD.PLACES || {};
+for (const id of sceneIds) {
+  const st = STAGES[id];
+  if (!st) { err('무대 없음: ' + id); continue; }
+  const pl = PLACES[st.place];
+  if (!pl) { err('무대 장소 잘못됨: ' + id + ' ' + st.place); continue; }
+  const me = st.me || pl.me;
+  if (!WORLD.walkable(me.x, me.y)) err('무대에서 내가 막힌 칸: ' + id);
+  if (['day', 'evening', 'night'].indexOf(st.tint) < 0) err('무대 시간대 잘못됨: ' + id);
+  if (st.device && ['phone', 'monitor', 'none'].indexOf(st.device) < 0) err('무대 기기 잘못됨: ' + id);
+  const at = { [me.x + ',' + me.y]: 'me' };
+  for (const c of st.cast) {
+    if (!story.characters[c.who]) err('무대 인물 없음: ' + id + '/' + c.who);
+    if (!WORLD.walkable(c.x, c.y)) err('무대 인물이 벽·가구 위: ' + id + '/' + c.who + ' ' + c.x + ',' + c.y);
+    if (at[c.x + ',' + c.y]) err('무대에서 같은 칸에 둘: ' + id + ' ' + c.x + ',' + c.y);
+    at[c.x + ',' + c.y] = c.who;
+  }
+  const texts = sceneTexts(id);
+  for (const b of st.bubbles || []) {
+    if (!texts.some((t) => t.indexOf(b.on) >= 0)) err('말풍선 기준 줄 없음: ' + id + ' "' + b.on + '"');
+    if (b.who !== 'me' && !st.cast.some((c) => c.who === b.who)) err('말풍선 인물이 무대에 없음: ' + id + '/' + b.who);
+  }
+}
+
 // ── 7. 보고 ──────────────────────────────
 const decisionScenes = sceneIds.filter((id) => (story.scenes[id].choices || []).length);
 const choiceTotal = sceneIds.reduce((n, id) => n + (story.scenes[id].choices || []).length, 0);

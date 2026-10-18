@@ -220,6 +220,27 @@
       sessionStorage.removeItem('probe-phase'); sessionStorage.removeItem('probe-carry');
     }
 
+    else if (s === 'stage-mode') {
+      $('#btn-new').click(); await wait(30);
+      var SG = window.PRIVACY_WORLD.STAGES;
+      var before = PrivacyMap.debug.me();
+      await PrivacyMap.stage(SG.c1_e2_b, { card: '그날 밤 · 내 방' });
+      var d = PrivacyMap.debug.stage();
+      ok(d.mode === 'stage' && d.place === 'room' && d.tint === 'night', '무대 모드: 내 방·밤 ' + JSON.stringify(d));
+      ok($('#cut').hidden, '컷 카드는 끝나면 사라짐');
+      var m1 = PrivacyMap.debug.me();
+      key('ArrowLeft'); key('ArrowLeft', 'keyup'); await wait(300);
+      var m2 = PrivacyMap.debug.me();
+      ok(m1.x === m2.x && m1.y === m2.y, '무대 모드에선 방향키로 걷지 않음');
+      await PrivacyMap.stage(SG.pro_1);
+      ok(PrivacyMap.bubble('dohyun', '📱…') && PrivacyMap.bubble('seoa', '…'), '무대 인물 말풍선');
+      ok(!PrivacyMap.bubble('teacher', 'x'), '무대에 없는 인물은 말풍선 없음');
+      var b = PrivacyMap.debug.stage().bubbles;
+      ok(b.indexOf('dohyun') >= 0 && b.indexOf('seoa') >= 0, '두 명 말풍선 동시: ' + b);
+      PrivacyMap.clearBubbles();
+      ok(PrivacyMap.debug.stage().bubbles.length === 0, '말풍선 지우기');
+    }
+
     else if (s === 'map-resume') {
       if (P.phase === 0) {
         $('#btn-new').click();

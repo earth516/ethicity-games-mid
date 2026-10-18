@@ -26,11 +26,12 @@
   var o = null;                 // init 옵션
   var canvas, ctx, wrap;
   var active = false, raf = null, tmr = null, lastT = 0;
+  var mode = null, stageInfo = null; // mode: 'walk'(걷기·입력) | 'stage'(장면 무대: 그리기만)
   var run = null, trig = null, targetId = null;
   var cast = [], blocked = {};
   var me = { x: 0, y: 0, dir: 'down', fx: 0, fy: 0, moving: false, t: 0, from: null, to: null, door: null, frame: 0 };
   var held = [], path = null, actOnArrive = false, busy = false;
-  var bubble = null, T = 40, viewW = 0, viewH = 0, cam = { x: 0, y: 0 }, dpr = 1;
+  var bubbles = [], T = 40, viewW = 0, viewH = 0, cam = { x: 0, y: 0 }, dpr = 1;
   var sprites = {}, lastArea = '', lastLook = null;
   var srcTile = 48; // 스프라이트 원본 한 칸(px). 시트를 읽으면 자동으로 바뀐다
   // 건물은 반복 벽 타일 대신 하나의 외관을 사용한다. 충돌/문 좌표는 world.js 소유.
@@ -66,7 +67,7 @@
     tent1: 'tent_booth_a', tent2: 'tent_booth_b', sign: 'sign', bench: 'bench', lamp: 'lamp', bed: 'bed', mybook: 'bookcase_room',
     pc1: 'pc_public_off', pc2: 'pc_public_off',
     pc3: function () { return trig && trig.target.obj === 'pc3' ? 'pc_public_on' : 'pc_public_off'; },
-    mypc: function () { return trig && trig.target.obj === 'mypc' ? 'desk_pc_on' : 'desk_pc_off'; }
+    mypc: function () { return (trig && trig.target.obj === 'mypc') || (stageInfo && stageInfo.pcOn) ? 'desk_pc_on' : 'desk_pc_off'; }
   };
   function artFor(ob) {
     if (ob.id.indexOf('desk') === 0 && ob.id !== 'desk') return 'desk_student';
@@ -142,7 +143,8 @@
 
     $('m-time').textContent = trig.time;
     $('m-mission').textContent = trig.mission;
-    held = []; path = null; actOnArrive = false; busy = false; bubble = null;
+    held = []; path = null; actOnArrive = false; busy = false; bubbles = [];
+    mode = 'walk'; stageInfo = null;
     lastArea = '';
     updateArea();
     say(trig.hint || '');
@@ -153,7 +155,30 @@
     lastT = performance.now();
     schedule();
   }
-  function hide() { active = false; held = []; path = null; if (raf) cancelAnimationFrame(raf); clearTimeout(tmr); raf = null; }
+  // 장면 무대: 입력 없이 장소·인물·시간대만 그린다. card가 있으면 잠깐 컷 카드를 띄우고 끝나면 resolve
+  function stage(st, opts) {
+    opts = opts || {};
+    mode = 'stage'; stageInfo = st; trig = null; targetId = null;
+    cast = st.cast.slice(); blocked = {};
+    cast.forEach(function (c) { loadSprite(c.who, 'char_' + c.who + '.png'); });
+    var look = o.playerLook();
+    if (look !== lastLook) { delete sprites.me; lastLook = look; }
+    loadSprite('me', 'char_player_' + look + '.png');
+    loadSprite('minjun_sleep', 'minjun_sleep.png');
+    loadAtlas();
+    place(st.me || WD.PLACES[st.place].me);
+    held = []; path = null; actOnArrive = false; busy = false; bubbles = [];
+    say('');
+    lastArea = ''; updateArea();
+    active = true; resize(); lastT = performance.now(); schedule();
+    var c = $('cut');
+    if (!opts.card) { c.hidden = true; return Promise.resolve(); }
+    c.textContent = opts.card; c.hidden = false;
+    var ms = o.instant() || o.reduceMotion() ? 0 : 1200;
+    return new Promise(function (res) { setTimeout(function () { c.hidden = true; res(); }, ms); });
+  }
+  function clearBubbles() { bubbles = []; }
+  function hide() { active = false; mode = null; held = []; path = null; if (raf) cancelAnimationFrame(raf); clearTimeout(tmr); raf = null; }
   // 화면 갱신은 rAF, 탭이 가려지거나 rAF가 멈춘 환경에선 타이머가 대신 진행시킨다
   function schedule() {
     if (!active) return;
@@ -229,6 +254,7 @@
   function nearTarget() { return neighbors().some(isTarget); }
 
   function act() {
+    if (mode !== 'walk') return;
     if (window.PrivacyTalk.isOpen()) { window.PrivacyTalk.next(); return; }
     if (busy || me.moving) return;
     var ns = neighbors();
@@ -265,12 +291,12 @@
   function talk(lines) {
     return window.PrivacyTalk.open(lines, { instant: o.instant(), onLine: function (l) {
       var c = cast.filter(function (k) { return k.who === l.who; })[0];
-      bubble = c ? { text: l.text.length > 12 ? l.text.slice(0, 12) + '…' : l.text, who: c, until: performance.now() + 3200 } : null;
+      if (c) setBubble(c, l.text);
     } });
   }
   // 짧은 안내(문 드나들기·길 안내)는 대화창 대신 무대 위 한 줄로
   function say(text, speaker) {
-    bubble = text && speaker ? { text: text, who: speaker, until: performance.now() + 3200 } : null;
+    if (text && speaker) setBubble(speaker, text);
     $('m-say').textContent = text || '';
   }
   function updateHint() {
@@ -281,6 +307,7 @@
   }
 
   function skipToTarget() {
+    if (mode !== 'walk') return;
     if (busy) return;
     var p = routeToTarget();
     if (!p) { say('지금은 그곳으로 갈 수 없어요.'); return; }
@@ -302,7 +329,7 @@
   /* ── 입력 ─────────────────────── */
   function overlayOpen() { return !$('menu').hidden || !$('confirm').hidden; }
   function onKeyDown(e) {
-    if (!active || overlayOpen() || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (mode !== 'walk' || overlayOpen() || e.altKey || e.ctrlKey || e.metaKey) return;
     var tag = (e.target && e.target.tagName) || '';
     var dir = KEY_DIR[e.key];
     if (dir) {
@@ -320,7 +347,7 @@
     if (dir) { var i = held.indexOf(dir); if (i >= 0) held.splice(i, 1); }
   }
   function onPointer(e) {
-    if (!active || busy) return;
+    if (mode !== 'walk' || busy) return;
     if (window.PrivacyTalk.isOpen()) { window.PrivacyTalk.close(); return; }
     var r = canvas.getBoundingClientRect();
     var tx = Math.floor((e.clientX - r.left + cam.x) / T), ty = Math.floor((e.clientY - r.top + cam.y) / T);
@@ -431,8 +458,9 @@
     list.push({ y: me.fy + 0.01, fn: function () { drawPerson('me', o.playerName(), me.fx, me.fy, me.dir, me.moving ? Math.floor(me.t * 4) % 4 : 0); } });
     list.sort(function (a, b) { return a.y - b.y; });
     list.forEach(function (d) { d.fn(); });
-    if (TINT[trig.tint] && !(WD.areaName(me.x, me.y) === '내 방' && trig.tint === 'day')) { ctx.fillStyle = TINT[trig.tint]; ctx.fillRect(0, 0, viewW, viewH); }
-    drawMarker(t);
+    var tint = mode === 'stage' ? stageInfo.tint : trig.tint;
+    if (TINT[tint] && !(WD.areaName(me.x, me.y) === '내 방' && tint === 'day')) { ctx.fillStyle = TINT[tint]; ctx.fillRect(0, 0, viewW, viewH); }
+    if (mode === 'walk') drawMarker(t);
     drawBubble(t);
   }
   function drawTile(ch, sx, sy) {
@@ -544,12 +572,27 @@
       ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(-4, -5); ctx.lineTo(-4, 5); ctx.closePath(); ctx.fill(); ctx.restore();
     }
   }
-  function drawBubble(t) {
-    if (!bubble) return;
-    if (t > bubble.until) { bubble = null; return; }
-    var who = bubble.who;
-    var cx = who ? who.x * T - cam.x + T / 2 : viewW / 2;
-    var by = who ? who.y * T - cam.y - T * 0.3 : viewH - 16;
+  // 말풍선: 인물마다 하나씩, 3.2초 뒤 사라짐. 길면 12자에서 자른다
+  function setBubble(c, text) {
+    text = String(text);
+    bubbles = bubbles.filter(function (b) { return b.who !== c; });
+    bubbles.push({ text: text.length > 12 ? text.slice(0, 12) + '…' : text, who: c, until: performance.now() + 3200 });
+  }
+  function bubbleFor(who, text) {
+    var c = who === 'me' ? 'me' : cast.filter(function (k) { return k.who === who; })[0];
+    if (!c) return false;
+    setBubble(c, text);
+    return true;
+  }
+  function liveBubbles() { var now = performance.now(); return bubbles.filter(function (b) { return b.until > now; }); }
+  function drawBubble() {
+    bubbles = liveBubbles();
+    bubbles.forEach(drawOneBubble);
+  }
+  function drawOneBubble(bubble) {
+    var who = bubble.who === 'me' ? { x: me.fx, y: me.fy } : bubble.who;
+    var cx = who.x * T - cam.x + T / 2;
+    var by = who.y * T - cam.y - T * 0.3;
     var fs = Math.max(13, Math.round(T * 0.32));
     ctx.font = fs + 'px sans-serif';
     var lines = wrapText(bubble.text, Math.min(viewW - 40, T * 7));
@@ -591,12 +634,18 @@
   }
 
   window.PrivacyMap = {
-    init: init, show: show, hide: hide,
+    init: init, show: show, hide: hide, stage: stage, bubble: bubbleFor, clearBubbles: clearBubbles,
     // 검증용(읽기 전용 + 경로 계산)
     debug: {
       me: function () { return { x: me.x, y: me.y, dir: me.dir, moving: me.moving, area: WD.areaName(me.x, me.y) }; },
       route: routeToTarget,
       nearTarget: nearTarget,
+      stage: function () {
+        return { mode: mode, place: stageInfo && stageInfo.place, tint: stageInfo && stageInfo.tint,
+          cast: cast.map(function (c) { return c.who; }),
+          bubbles: liveBubbles().map(function (b) { return b.who === 'me' ? 'me' : b.who.who; }),
+          bubbleTexts: liveBubbles().map(function (b) { return b.text; }) };
+      },
       tileToClient: function (tx, ty) { var r = canvas.getBoundingClientRect(); return { x: r.left + tx * T - cam.x + T / 2, y: r.top + ty * T - cam.y + T / 2 }; }
     }
   };
