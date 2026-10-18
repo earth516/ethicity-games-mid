@@ -457,7 +457,9 @@
       var sx = x * T - cam.x, sy = y * T - cam.y;
       if (inside && !WD.indoor(x, y)) { ctx.fillStyle = '#dfe7e3'; ctx.fillRect(sx, sy, T + 1, T + 1); continue; }
       if (schoolCovered && school.contains(x, y)) {
-        ctx.fillStyle = '#86a85f'; ctx.fillRect(Math.round(sx), Math.round(sy), T + 1, T + 1); continue;
+        // 외관 그림 아래 바닥: 단색 대신 주변과 같은 풀 질감(현관 칸은 흙길로 이어짐)
+        if (!(window.PrivacyTerrain && window.PrivacyTerrain.drawCell(ctx, 'g', x, y, T, cam))) { ctx.fillStyle = '#86a85f'; ctx.fillRect(Math.round(sx), Math.round(sy), T + 1, T + 1); }
+        continue;
       }
       var ch = tileAt(x, y);
       if (inside && room && room.cell(ctx, ch, x, y, T, cam)) continue;
@@ -615,21 +617,37 @@
     ctx.fillStyle = '#FFFFFF'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(label, sx + T / 2, ty + T * 0.17);
   }
+  // ❗가 들어갈 수 있는 캔버스 안 영역: 위 HUD(시간·할 일·버튼) 아래, 아래 버튼·안내 문구 위
+  var lastMarker = null;
+  function safeArea() {
+    var cr = canvas.getBoundingClientRect(), top = 6, bottom = viewH - 6;
+    ['.hud-left', '.hud .bar-actions', '#m-say'].forEach(function (q) {
+      var e = document.querySelector(q);
+      if (e && e.getClientRects().length) top = Math.max(top, e.getBoundingClientRect().bottom - cr.top + 8);
+    });
+    ['#v-map .map-controls', '#v-map .map-help'].forEach(function (q) {
+      var e = document.querySelector(q);
+      if (e && e.getClientRects().length) bottom = Math.min(bottom, e.getBoundingClientRect().top - cr.top - 8);
+    });
+    if (bottom - top < 80) { top = 6; bottom = viewH - 6; } // 아주 좁으면 가림보다 표시를 우선
+    return { left: 6, right: viewW - 6, top: top, bottom: bottom };
+  }
   function drawMarker(t) {
     var b = targetBox();
     var school = window.PrivacySchool;
     if (school && school.contains(b.x, b.y) && !school.contains(me.x, me.y)) b = { x: 10, y: 10, w: 2, h: 1 };
     if (WD.indoor(b.x, b.y) && !WD.indoor(me.x, me.y)) b = { x: WD.INDOOR.entrance.x, y: WD.INDOOR.entrance.y, w: 1, h: 1 };
+    // 방 안인데 목적지가 바깥이면 나가는 방문에(어디로 가야 하는지 바로 보이게)
+    if (!WD.indoor(b.x, b.y) && WD.indoor(me.x, me.y)) b = { x: WD.INDOOR.exit.x, y: WD.INDOOR.exit.y, w: 1, h: 1 };
     var bob = o.reduceMotion() ? 0 : Math.sin(t / 220) * T * 0.08;
     var mx = (b.x + b.w / 2) * T - cam.x, my = b.y * T - cam.y - T * (b.who ? 0.95 : 0.35) + bob;
-    var off = mx < 8 || mx > viewW - 8 || my < 8 || my > viewH - 8;
-    if (off) { // 화면 밖이면 가장자리에 방향 표시
-      mx = Math.max(22, Math.min(viewW - 22, mx));
-      my = Math.max(22, Math.min(viewH - 22, my));
-    }
-    var iconSize = Math.max(32, Math.round(T * 0.8));
-    mx = Math.max(iconSize / 2 + 4, Math.min(viewW - iconSize / 2 - 4, mx));
-    my = Math.max(iconSize / 2 + 4, Math.min(viewH - iconSize / 2 - 4, my));
+    // 화면 밖이거나 위 안내 상자·아래 버튼에 가리는 자리면, 보이는 띠 안으로 옮기고 방향 화살표를 단다
+    var iconSize = Math.max(32, Math.round(T * 0.8)), sa = safeArea();
+    var tx0 = mx, ty0 = my;
+    mx = Math.max(sa.left + iconSize / 2, Math.min(sa.right - iconSize / 2, mx));
+    my = Math.max(sa.top + iconSize / 2, Math.min(sa.bottom - iconSize / 2, my));
+    var off = Math.abs(mx - tx0) > 2 || Math.abs(my - ty0) > 2;
+    lastMarker = { x: mx, y: my, tx: b.x, ty: b.y, off: off };
     if (questIcon) {
       // 생성 원본의 투명 여백을 제외한 알파 경계(>16). 원본 PNG는 보존한다.
       var iw = Math.round(iconSize * 630 / 669);
@@ -722,6 +740,7 @@
       me: function () { return { x: me.x, y: me.y, dir: me.dir, moving: me.moving, area: WD.areaName(me.x, me.y) }; },
       route: routeToTarget,
       nearTarget: nearTarget,
+      marker: function () { return lastMarker; },
       routeTo: function (tx, ty) { return WD.findPath({ x: me.x, y: me.y }, function (x, y) { return x === tx && y === ty; }, blocked); },
       roof: function () { var s = window.PrivacySchool; return !!(s && !s.contains(me.x, me.y)); },
       stage: function () {

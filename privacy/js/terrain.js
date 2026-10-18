@@ -16,7 +16,8 @@
   }
   function road(x, y) {
     var c = world.grid[y] && world.grid[y][x];
-    return c === 'p' || c === 'y' || c === 'o' || (c === 'd' && x === 22);
+    // 교문(22,·)과 학교 현관(10·11,10) 문 칸도 흙길로 — 현관 계단 바로 앞까지 길이 닿게
+    return c === 'p' || c === 'y' || c === 'o' || (c === 'd' && (x === 22 || (y === 10 && (x === 10 || x === 11))));
   }
   function build() {
     if (!images.grass || !images.path) return;

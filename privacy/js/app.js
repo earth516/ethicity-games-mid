@@ -11,7 +11,7 @@
   var S = window.PrivacyStorage;
   var CFG = window.PRIVACY_CONFIG || { characterImages: {}, defaultAvatar: 'assets/avatar-default.svg', defaultNickname: '플레이어' };
 
-  var SPEED_MS = { normal: 650, fast: 220, instant: 0 };
+  var SPEED_MS = { normal: 900, fast: 300, instant: 0 }; // 메시지 간격(ms): 읽을 틈을 두고 천천히
   var VIEW_ICON = { group: '👥', dm: '💬', sns: '📱', ai: '✦', pc: '🖥', place: '📍' };
   // 장면을 띄우는 기기: 폰(메신저·SNS) / 모니터(공용 PC·AI) / 없음(그 자리 대화 → 대화창)
   var DEVICE = { group: 'phone', dm: 'phone', sns: 'phone', ai: 'monitor', pc: 'monitor', place: 'none' };

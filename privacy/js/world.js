@@ -147,7 +147,7 @@
   });
 
   /* 실내(내 방): 밖에 있을 땐 숲으로 가려 그리고, ❗는 집 문에 띄운다 */
-  var INDOOR = { x: 30, y: 2, w: 10, h: 7, entrance: { x: 42, y: 18 } };
+  var INDOOR = { x: 30, y: 2, w: 10, h: 7, entrance: { x: 42, y: 18 }, exit: { x: 34, y: 8 } }; // entrance=집 현관(밖), exit=방문(안)
 
   var SPAWNS = {
     classroom: { x: 8, y: 6, dir: 'up' },
@@ -202,7 +202,8 @@
       cast: [{ who: 'dohyun', x: 17, y: 20, dir: 'left' }, { who: 'friend', x: 18, y: 20, dir: 'left' },
         { who: 'minjun', x: 13, y: 19, dir: 'down' }, { who: 'hayun', x: 15, y: 19, dir: 'down' }, { who: 'seoa', x: 20, y: 19, dir: 'left' }] },
     c3_e8_a: { time: '축제 당일 · 저녁', mission: '집에 가서 쉬기 — 내 방 컴퓨터', target: { obj: 'mypc' }, spawn: 'yard', tint: 'evening',
-      cast: [{ who: 'dohyun', x: 18, y: 19, dir: 'down' }, { who: 'teacher', x: 11, y: 12, dir: 'down' }] },
+      cast: [{ who: 'dohyun', x: 18, y: 19, dir: 'down' }, { who: 'teacher', x: 11, y: 12, dir: 'down' }],
+      castLines: { teacher: '고생 많았어. 이제 집에 가서 푹 쉬렴.' } }, // 축제가 끝난 저녁
     c3_e9_a: { time: '축제 다음 날 · 오전', mission: '교실에서 하윤이에게 말 걸기', target: { npc: 'hayun' }, spawn: 'gate', tint: 'day',
       cast: schoolDay() },
     ep_1: { time: '다음 주 월요일', mission: '교실에서 담임 선생님께 가기', target: { npc: 'teacher' }, spawn: 'gate', tint: 'day',

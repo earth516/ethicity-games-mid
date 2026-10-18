@@ -178,6 +178,7 @@
       var gt = 0; while ((!$('#talk') || $('#talk').hidden) && gt++ < 300) await wait(20);
       ok(!!$('#talk') && !$('#talk').hidden && /\S/.test($('#talk .talk-text').textContent), '말 걸기 결과가 대화창에 나옴');
       ok(!!$('#talk .talk-name') && /도현/.test($('#talk .talk-name').textContent), '대화창 이름 탭');
+      ok($('#talk').getBoundingClientRect().height >= 118, '한 줄이어도 넉넉한 대화창 높이 ' + Math.round($('#talk').getBoundingClientRect().height));
       key(' '); await wait(30);
       ok($('#talk').hidden && view() === 'v-map', 'Space로 대화창 닫힘, 맵 그대로');
     }
@@ -365,6 +366,30 @@
       $('#btn-map-skip').click(); await wait(30);
       ok(!!$('#btn-map-act .ico-quest') && $('#btn-map-act').textContent.indexOf('❗') < 0 && /하윤에게 말 걸기/.test($('#btn-map-act').textContent), '목적지 버튼: 그림 + 하윤에게 말 걸기');
       ok($$('.ico-quest').every(function (im) { return /quest\.png/.test(getComputedStyle(im).backgroundImage) && im.getAttribute('role') === 'img' && !!im.getAttribute('aria-label'); }), 'quest.png 사용·대체 글자 있음');
+    }
+
+    else if (s === 'marker') {
+      // ❗가 위 안내 상자·아래 버튼·안내 문구에 가리지 않는지(화면 좌표로 겹침 검사)
+      function markerVisible(label) {
+        var mk = PrivacyMap.debug.marker(), cr = $('#m-canvas').getBoundingClientRect();
+        if (!mk) { fail.push(label + ': ❗ 없음'); return null; }
+        var px = cr.left + mk.x, py = cr.top + mk.y;
+        var hits = ['.hud-left', '.hud .bar-actions', '#v-map .map-controls', '#v-map .map-help', '#m-say'].filter(function (q) {
+          var e = $(q); if (!e || !e.getClientRects().length) return false;
+          var r = e.getBoundingClientRect(); return px >= r.left - 12 && px <= r.right + 12 && py >= r.top - 12 && py <= r.bottom + 12;
+        });
+        ok(hits.length === 0 && px > cr.left && px < cr.right && py > cr.top && py < cr.bottom, label + ': ❗가 안내 상자·버튼에 가리지 않음 ' + JSON.stringify([Math.round(px), Math.round(py), hits]));
+        return mk;
+      }
+      $('#btn-new').click(); await wait(300);
+      var mk0 = markerVisible('첫날 아침 내 방');
+      ok(!!mk0 && mk0.tx === 34 && mk0.ty === 8, '방 안에서 목적지가 바깥이면 ❗는 방문에 ' + JSON.stringify(mk0));
+      // 집 밖으로 나가면 다시 목적지(교실 하윤) 쪽
+      var rt = PrivacyMap.debug.routeTo(42, 19) || [];
+      for (var k = 0; k < rt.length; k++) { key(ARROW[rt[k]]); key(ARROW[rt[k]], 'keyup'); var g = 0; await wait(16); while (PrivacyMap.debug.me().moving && g++ < 100) await wait(16); }
+      await wait(100);
+      var mk1 = markerVisible('집 앞');
+      ok(!!mk1 && !(mk1.tx === 34 && mk1.ty === 8), '집 밖에선 ❗가 학교 쪽 ' + JSON.stringify(mk1));
     }
 
     else if (s === 'neighborhood') {
@@ -700,9 +725,11 @@
         await wait(300);
         return;
       }
-      if (s === 'shot-hood' || s === 'shot-gate' || s === 'shot-south' || s === 'shot-edge') { // 주택가·교문 화면 확인용: 그 자리까지 걸어감
+      if (s === 'shot-opening') { $('#btn-new').click(); await wait(500); return; }
+      if (s === 'shot-talk') { $('#btn-new').click(); await play(R.A, { upto: 1, stopAtMap: true }); var pd = PrivacyMap.debug.tileToClient(8, 2); $('#m-canvas').dispatchEvent(new PointerEvent('pointerdown', { clientX: pd.x, clientY: pd.y, bubbles: true })); await wait(1500); return; }
+      if (s === 'shot-hood' || s === 'shot-gate' || s === 'shot-south' || s === 'shot-edge' || s === 'shot-front') { // 주택가·교문 화면 확인용: 그 자리까지 걸어감
         $('#btn-new').click(); await play(R.A, { upto: 1, stopAtMap: true });
-        var dest = { 'shot-hood': [46, 20], 'shot-gate': [24, 16], 'shot-south': [44, 27], 'shot-edge': [58, 30] }[s];
+        var dest = { 'shot-hood': [46, 20], 'shot-gate': [24, 16], 'shot-south': [44, 27], 'shot-edge': [58, 30], 'shot-front': [12, 14] }[s];
         var rr = PrivacyMap.debug.routeTo(dest[0], dest[1]) || [];
         for (var q = 0; q < rr.length; q++) { key(ARROW[rr[q]]); key(ARROW[rr[q]], 'keyup'); await wait(16); while (PrivacyMap.debug.me().moving) await wait(16); }
         await wait(500); return;

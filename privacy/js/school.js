@@ -77,10 +77,26 @@
     } else { ctx.restore(); return false; }
     ctx.restore(); return true;
   }
+  // 학생 책상: 원본은 의자가 책상 뒤(교탁과 같은 방향)라, 책상과 의자 등받이를 잘라 의자를 앞(아래)에 놓는다
+  // → 학생이 칠판·교탁을 보고 앉은 모습. 원본 PNG는 그대로.
+  function studentDesk(ctx, x, bottom, tile, cam) {
+    var a = assets.desk; if (!a) return false;
+    var im = a.image, W = im.naturalWidth, H = im.naturalHeight, b = a.box;
+    var kx = 1 / b[2], ky = 1.15 / b[3];            // 예전과 같은 크기 비율(폭 1칸·높이 1.15칸)
+    var dy0 = Math.round(H * 0.26);                    // 책상 부분: 의자 등받이 아래부터
+    var dh = (b[1] + b[3] - dy0) * ky;
+    ctx.drawImage(im, b[0], dy0, b[2], b[1] + b[3] - dy0,
+      Math.round(x * tile - cam.x), Math.round((bottom - dh) * tile - cam.y), Math.round(tile), Math.round(dh * tile));
+    var cx0 = Math.round(W * 0.3), cw = Math.round(W * 0.4), cy0 = b[1], ch = Math.round(H * 0.235) - b[1];
+    var w = cw * kx, h = ch * ky;                      // 의자 등받이(뒤에서 본 모습)를 책상 앞쪽에 겹쳐
+    ctx.drawImage(im, cx0, cy0, cw, ch,
+      Math.round((x + (1 - w) / 2) * tile - cam.x), Math.round((bottom + 0.08 - h) * tile - cam.y), Math.round(w * tile), Math.round(h * tile));
+    return true;
+  }
   function object(ctx, ob, tile, cam, pcOn) {
     if (!contains(ob.x, ob.y)) return false;
     var bottom = ob.y + ob.h, name, width = ob.w, height;
-    if (/^desk\d/.test(ob.id)) { name = 'desk'; height = 1.15; }
+    if (/^desk\d/.test(ob.id)) return studentDesk(ctx, ob.x, bottom, tile, cam);
     else if (ob.id === 'tdesk') { name = 'teacher-desk'; height = 1.2; }
     else if (ob.id === 'board') { name = 'board'; height = 0.92; }
     else if (ob.id === 'locker') { name = 'locker'; height = 1.8; }
