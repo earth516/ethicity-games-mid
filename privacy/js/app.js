@@ -89,9 +89,11 @@
   /* ── 화면 전환 ───────────────────── */
   var VIEWS = ['v-start', 'v-game', 'v-map', 'v-chapter', 'v-ending', 'v-path', 'v-reflect'];
   var current = 'v-start';
+  var STAGE_VIEWS = ['v-map', 'v-game', 'v-chapter']; // 맵 무대 위에 겹쳐 뜨는 화면
   function show(id, focusEl) {
     stopReveal();
-    if (id !== 'v-map') window.PrivacyMap.hide();
+    if (id !== 'v-map') { window.PrivacyMap.hide(); window.PrivacyTalk.close(); }
+    $('stage').hidden = STAGE_VIEWS.indexOf(id) < 0;
     VIEWS.forEach(function (v) { $(v).hidden = v !== id; });
     current = id;
     document.body.setAttribute('data-view', id);
@@ -375,8 +377,8 @@
   /* ── 맵 ─────────────────────────── */
   function renderMap() {
     var run = progress.run;
-    $('btn-map-undo').disabled = !run.history.length;
-    show('v-map', $('m-mission').parentNode);
+    $('btn-undo').disabled = !run.history.length;
+    show('v-map', $('hud-mission'));
     window.PrivacyMap.show(run);
   }
 
@@ -629,8 +631,6 @@
     $('btn-reflect-back').addEventListener('click', function () { goTo(reflectBack); });
     $('btn-reflect-home').addEventListener('click', renderStart);
 
-    $('btn-map-undo').addEventListener('click', function () { $('btn-undo').click(); });
-    $('btn-map-menu').addEventListener('click', function () { syncMenu(); openOverlay('menu'); });
     $('btn-undo').addEventListener('click', function () {
       var run = progress.run;
       if (!run || !run.history.length) return;

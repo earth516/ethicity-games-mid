@@ -14,6 +14,7 @@
   --radius-in: 10px;
   --pad: 6px;
   --radius-out: 16px; /* = 안쪽 10 + 여백 6 */
+  --pixel: "Galmuri11", "Pretendard", sans-serif;
   --font: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 }
 * { box-sizing: border-box; }
@@ -204,22 +205,99 @@ body[data-view="v-game"] .app { padding-top: 12px; padding-bottom: 16px; }
 .continue { width: 100%; }
 .skip-btn { width: 100%; color: var(--text-mute); }
 
-/* ── 맵 ───────────── */
-body[data-view="v-map"] .app { padding-top: 12px; padding-bottom: 16px; }
-.m-area { font-weight: 600; color: var(--accent); margin-left: 6px; }
-.mission { font-size: 1.05rem; font-weight: 700; margin: 0 0 8px; display: flex; flex-direction: column; gap: 0; }
-.mission-label { font-size: .75rem; font-weight: 600; color: var(--text-mute); }
-.mission:focus { outline: none; }
-.map-wrap { position: relative; border-radius: 22px; overflow: hidden; border: 1px solid var(--border); background: #5E8F55; touch-action: none; }
-#m-canvas { display: block; cursor: pointer; }
-.daycard {
-  position: absolute; inset: 0; margin: 0; display: grid; place-items: center;
-  background: rgba(22, 32, 31, .78); color: #fff; font-size: 1.4rem; font-weight: 800;
+/* ── 무대: 맵이 화면의 주인, 걷기·장면·장 전환이 그 위에 겹쳐 뜬다 ───────────── */
+body[data-view="v-map"] .app, body[data-view="v-game"] .app, body[data-view="v-chapter"] .app { max-width: 960px; padding: 12px; }
+.stage {
+  position: relative; height: calc(100dvh - 24px); min-height: 420px; max-height: 760px;
+  border-radius: 22px; overflow: hidden; background: #5E8F55; border: 1px solid var(--border);
 }
-.m-say { min-height: 1.75em; margin: 8px 2px 0; font-size: .95rem; }
-.map-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-.map-controls .btn { flex: 1 1 12rem; }
-.map-help { margin-top: 8px; }
+.map-wrap { position: absolute; inset: 0; touch-action: none; }
+#m-canvas { display: block; cursor: pointer; }
+.layer { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.layer > * { pointer-events: auto; }
+
+/* HUD: 시간·장소·지금 할 일 / 되돌리기·메뉴 */
+.hud {
+  position: absolute; top: 8px; left: 8px; right: 8px; z-index: 4;
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; pointer-events: none;
+}
+.hud > * { pointer-events: auto; }
+.hud-left {
+  max-width: min(70%, 30rem); padding: 4px 12px 6px; border-radius: var(--radius-in);
+  background: rgba(255, 255, 255, .94); border: 2px solid var(--text);
+}
+.hud-time { margin: 0; font-family: var(--pixel); font-size: .78rem; color: var(--text-mute); }
+.hud .chap { font-family: var(--pixel); font-size: .78rem; }
+.m-area { font-weight: 600; color: var(--accent); margin-left: 6px; }
+.mission { font-size: 1rem; font-weight: 700; margin: 0; line-height: 1.5; }
+.mission-label { font-family: var(--pixel); font-size: .72rem; font-weight: 400; color: var(--text-mute); margin-right: 6px; }
+.mission:focus { outline: none; }
+.hud .bar-actions .btn { background: rgba(255, 255, 255, .94); border: 2px solid var(--text); }
+body[data-view="v-map"] #g-chap { display: none; }
+body[data-view="v-game"] #m-time, body[data-view="v-game"] #m-area, body[data-view="v-game"] .mission { display: none; }
+body[data-view="v-chapter"] .hud { display: none; }
+
+/* 짧은 안내 한 줄(문 드나들기·길 안내) */
+.m-say {
+  position: absolute; z-index: 4; top: 84px; left: 50%; transform: translateX(-50%); margin: 0;
+  max-width: calc(100% - 32px); padding: 2px 14px; border-radius: 999px;
+  background: rgba(22, 32, 31, .82); color: #fff; font-size: .9rem; text-align: center;
+}
+.m-say:empty { display: none; }
+.daycard {
+  position: absolute; inset: 0; z-index: 6; margin: 0; display: grid; place-items: center;
+  background: rgba(22, 32, 31, .78); color: #fff; font-family: var(--pixel); font-size: 1.4rem;
+}
+
+/* 맵 조작 버튼(아래쪽) */
+#v-map .map-controls { position: absolute; left: 8px; right: 8px; bottom: 8px; margin: 0; display: flex; gap: 8px; }
+#v-map .map-controls .btn { flex: 1 1 10rem; background: rgba(255, 255, 255, .94); border: 2px solid var(--text); }
+#v-map .map-controls .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+#v-map .map-help {
+  position: absolute; left: 8px; bottom: 64px; margin: 0; padding: 0 10px; border-radius: 6px;
+  background: rgba(255, 255, 255, .8); max-width: calc(100% - 16px);
+}
+
+/* 포켓몬식 대화창 */
+.talk {
+  position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 5;
+  min-height: 84px; max-height: 45%; overflow-y: auto; padding: 14px 44px 12px 16px;
+  background: #fff; color: var(--text); border: 3px solid var(--text); border-radius: 10px;
+  box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 4px #9FB2B0; cursor: pointer;
+}
+body[data-view="v-map"] .talk { bottom: 64px; }
+.talk-name {
+  display: inline-block; margin: -4px 0 4px -4px; padding: 1px 10px; border-radius: 4px;
+  background: var(--text); color: #fff; font-family: var(--pixel); font-size: .8rem; line-height: 1.6;
+}
+.talk-text p { margin: 0; }
+.talk-text p + p { margin-top: 4px; }
+.talk-next {
+  position: absolute; right: 10px; bottom: 6px; border: 0; background: none; padding: 4px;
+  font-size: .85rem; color: var(--text); cursor: pointer; animation: blink 1s steps(2) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* 장면(임시: Task 4에서 폰·모니터 오버레이로) */
+#v-game { display: flex; flex-direction: column; gap: 8px; padding: 84px 12px 12px; background: rgba(22, 32, 31, .35); }
+#v-game .phone { flex: 1 1 auto; min-height: 0; max-height: none; }
+#v-game .dock { flex: none; max-height: 45%; overflow-y: auto; padding: 8px; border-radius: var(--radius-out); background: var(--card); min-height: 0; }
+
+/* 장 전환 카드 */
+#v-chapter { background: rgba(22, 32, 31, .45); }
+.chapter-card {
+  position: absolute; inset: 16px; overflow-y: auto; padding: 20px 24px;
+  background: var(--card); border-radius: 18px;
+}
+.chapter-card h1 { margin-top: 0; }
+
+@media (max-width: 480px) {
+  body[data-view="v-map"] .app, body[data-view="v-game"] .app, body[data-view="v-chapter"] .app { padding: 6px; }
+  .stage { height: calc(100dvh - 12px); border-radius: 16px; }
+  .hud-left { max-width: 62%; }
+  #v-map .map-help { display: none; }
+  .chapter-card { inset: 8px; padding: 16px; }
+}
 
 /* ── 장 전환·엔딩 ───────────── */
 .event-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-out); padding: 14px 16px; margin-bottom: 12px; }

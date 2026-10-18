@@ -33,7 +33,7 @@
       if (v === 'v-map') {
         if (opts.upto != null && opts.stopAtMap && i >= opts.upto) return i;
         if (opts.walk) await walkToTarget(opts);
-        else { $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); }
+        else { $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); await wait(); await passTalk(); }
         await wait(opts.delay || 0);
         continue;
       }
@@ -62,6 +62,8 @@
     return i;
   }
 
+  // 대화창이 열려 있으면 ▼를 눌러 끝까지 넘긴다
+  async function passTalk() { var g = 0; while ($('#talk') && !$('#talk').hidden && g++ < 60) { $('#btn-talk-next').click(); await wait(20); } }
   function key(k, type) { document.dispatchEvent(new KeyboardEvent(type || 'keydown', { key: k, bubbles: true })); }
   var ARROW = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight' };
   async function walkToTarget(opts) {
@@ -77,7 +79,7 @@
     }
     if (!M.nearTarget()) fail.push('맵: 걸어서 대상 옆에 도착하지 못함 ' + JSON.stringify(M.me()));
     key(' ');
-    var g2 = 0; while (view() === 'v-map' && g2++ < 200) await wait(20);
+    var g2 = 0; while (view() === 'v-map' && g2++ < 200) { await passTalk(); await wait(20); }
   }
   function checkOthersKept() {
     var same = Object.keys(P.OTHER).every(function (k) { return ls(k) === P.OTHER[k]; });
@@ -144,18 +146,35 @@
       ok(/하윤/.test($('#m-mission').textContent), '지금 할 일 표시: ' + $('#m-mission').textContent);
       var pt = PrivacyMap.debug.tileToClient(5, 4); // 하윤 자리
       $('#m-canvas').dispatchEvent(new PointerEvent('pointerdown', { clientX: pt.x, clientY: pt.y, bubbles: true }));
-      var g = 0; while (view() === 'v-map' && g++ < 300) await wait(20);
+      var g = 0; while (view() === 'v-map' && g++ < 300) { await passTalk(); await wait(20); }
       ok(view() === 'v-game' && PrivacyApp.state().scene === 'c1_e1_a', '하윤을 누르면 걸어가서 정산 장면 시작 ' + JSON.stringify([pt, PrivacyMap.debug.me(), $('#m-say').textContent, $('#m-canvas').getBoundingClientRect().width]));
       // 맵에서 되돌리기: 다음 맵으로 간 뒤 되돌리면 이전 장면 선택 전으로
       await play(R.A, { from: 1, upto: 3, stopAtMap: true });
       ok(view() === 'v-map' && PrivacyApp.state().screen === 'map', '두 번째 사건 전 맵');
-      $('#btn-map-undo').click(); await wait(); confirmYes(); await wait();
+      $('#btn-undo').click(); await wait(); confirmYes(); await wait();
       ok(view() === 'v-game' && PrivacyApp.state().scene === 'c1_e1_b' && !PrivacyApp.state().reaction, '맵에서 되돌리기 → 직전 선택 전으로');
       $('#btn-map-act');
       // 사물 조사·다른 인물 대사
       await play(R.A, { from: 2, upto: 3, stopAtMap: true });
       $('#btn-map-act').click(); await wait();
       ok(view() === 'v-map' && $('#m-say').textContent.length > 0, '대상이 아닌 곳에서 누르면 안내 문구');
+    }
+
+    else if (s === 'frame') {
+      $('#btn-new').click();
+      await play(R.A, { upto: 1, stopAtMap: true });
+      ok(!!$('#stage') && $('#stage').contains($('#m-canvas')), '캔버스가 #stage 안에 있음');
+      ok(view() === 'v-map' && !$('#stage').hidden && getComputedStyle($('#stage')).display !== 'none', '맵 화면에서 무대 보임');
+      var cr = $('#m-canvas').getBoundingClientRect(), sr = { width: $('#stage').clientWidth, height: $('#stage').clientHeight };
+      ok(Math.abs(cr.width - sr.width) < 2 && Math.abs(cr.height - sr.height) < 2, '캔버스가 무대를 채움 ' + [cr.width, cr.height, sr.width, sr.height].map(Math.round));
+      // 하윤이 아닌 도현(8,2)을 누르면 걸어가서 말을 건다 → 대화창
+      var pd = PrivacyMap.debug.tileToClient(8, 2);
+      $('#m-canvas').dispatchEvent(new PointerEvent('pointerdown', { clientX: pd.x, clientY: pd.y, bubbles: true }));
+      var gt = 0; while ((!$('#talk') || $('#talk').hidden) && gt++ < 300) await wait(20);
+      ok(!!$('#talk') && !$('#talk').hidden && /\S/.test($('#talk .talk-text').textContent), '말 걸기 결과가 대화창에 나옴');
+      ok(!!$('#talk .talk-name') && /도현/.test($('#talk .talk-name').textContent), '대화창 이름 탭');
+      key(' '); await wait(30);
+      ok($('#talk').hidden && view() === 'v-map', 'Space로 대화창 닫힘, 맵 그대로');
     }
 
     else if (s === 'map-resume') {
@@ -176,7 +195,7 @@
       $('#btn-continue').click(); await wait();
       var m1 = PrivacyMap.debug.me();
       ok(view() === 'v-map' && m1.x === m0b.x && m1.y === m0b.y && m0b.x === 6, '같은 위치에서 재개 (' + m1.x + ',' + m1.y + ')');
-      $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); await wait();
+      $('#btn-map-skip').click(); await wait(); $('#btn-map-act').click(); await wait(); await passTalk(); await wait();
       ok(view() === 'v-game' && PrivacyApp.state().scene === 'c1_e1_a', '재개 후 사건 시작');
       sessionStorage.removeItem('probe-phase'); sessionStorage.removeItem('probe-carry');
     }

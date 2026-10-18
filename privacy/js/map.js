@@ -174,7 +174,7 @@
   function savePos() { o.savePos({ x: me.x, y: me.y, dir: me.dir, for: targetId }); }
 
   function dayCard(text) {
-    var c = $('m-daycard');
+    var c = $('cut');
     c.textContent = text;
     c.hidden = false;
     setTimeout(function () { c.hidden = true; }, o.instant() ? 0 : 1400);
@@ -228,6 +228,7 @@
   function nearTarget() { return neighbors().some(isTarget); }
 
   function act() {
+    if (window.PrivacyTalk.isOpen()) { window.PrivacyTalk.next(); return; }
     if (busy || me.moving) return;
     var ns = neighbors();
     if (!ns.length) { say('가까이 가서 눌러 보세요. ❗가 다음 목적지예요.'); return; }
@@ -235,23 +236,32 @@
     if (t) {
       me.dir = t.dir;
       busy = true;
-      var line = trig.greet ? trig.greet : '';
-      if (line) say(o.fill(line), t.type === 'npc' ? t.c : null);
-      setTimeout(function () { busy = false; if (active) o.onEnter(); }, line && !o.instant() ? 900 : 0);
+      say('');
+      var greet = trig.greet ? [personLine(t.type === 'npc' ? t.c.who : null, trig.greet)] : [];
+      talk(greet).then(function () { busy = false; if (active) o.onEnter(); });
       return;
     }
     var n = ns[0];
     me.dir = n.dir;
+    say('');
     if (n.type === 'npc') {
       var lines = WD.idle[n.c.who] || [{ text: '…' }];
       var hit = lines.filter(function (l) { return o.evalCond(l.if); })[0];
-      say(o.story.characters[n.c.who].name + ': ' + o.fill(hit.text), n.c);
+      talk([personLine(n.c.who, hit.text)]);
     } else {
-      say(n.ob.look || n.ob.name);
+      talk([{ who: null, name: null, text: n.ob.look || n.ob.name }]);
     }
   }
+  // 'hayun: 대사' 형식이면 말한 사람을 그 이름으로, 아니면 기본 화자로
+  function personLine(who, text) {
+    var m = /^(\w+): ([\s\S]*)$/.exec(text);
+    if (m && o.story.characters[m[1]]) { who = m[1]; text = m[2]; }
+    return { who: who, name: who ? o.story.characters[who].name : null, text: o.fill(text) };
+  }
+  function talk(lines) { return window.PrivacyTalk.open(lines, { instant: o.instant() }); }
+  // 짧은 안내(문 드나들기·길 안내)는 대화창 대신 무대 위 한 줄로
   function say(text, speaker) {
-    bubble = text ? { text: text, who: speaker || null, until: performance.now() + 3200 } : null;
+    bubble = text && speaker ? { text: text, who: speaker, until: performance.now() + 3200 } : null;
     $('m-say').textContent = text || '';
   }
   function updateHint() {
@@ -288,6 +298,7 @@
     var dir = KEY_DIR[e.key];
     if (dir) {
       e.preventDefault();
+      if (window.PrivacyTalk.isOpen()) window.PrivacyTalk.close(); // 걸으면 대화창은 닫힌다
       path = null; actOnArrive = false;
       if (held.indexOf(dir) < 0) held.push(dir);
       if (!me.moving && !busy) tryStep(dir);
@@ -301,6 +312,7 @@
   }
   function onPointer(e) {
     if (!active || busy) return;
+    if (window.PrivacyTalk.isOpen()) { window.PrivacyTalk.close(); return; }
     var r = canvas.getBoundingClientRect();
     var tx = Math.floor((e.clientX - r.left + cam.x) / T), ty = Math.floor((e.clientY - r.top + cam.y) / T);
     var npc = cast.filter(function (c) { return c.x === tx && c.y === ty; })[0];
@@ -328,7 +340,7 @@
   function resize() {
     if (!active) return;
     var cssW = wrap.clientWidth;
-    var cssH = Math.max(300, Math.min(Math.round(window.innerHeight * 0.56), 520));
+    var cssH = Math.max(240, wrap.clientHeight);
     // 도트가 뭉개지지 않게 원본 칸 크기의 정수배(1배·2배…)로만 그린다. 가로 약 13칸이 보이도록 배율을 고름
     var k = Math.max(1, Math.round(cssW / (srcTile * 13)));
     T = srcTile * k;
