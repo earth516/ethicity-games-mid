@@ -1,0 +1,62 @@
+[
+  {
+    "name": "hayun-portrait",
+    "width": 1024,
+    "height": 1536,
+    "box": [
+      32,
+      31,
+      990,
+      1505
+    ],
+    "transparent": 549996
+  },
+  {
+    "name": "dohyun-portrait",
+    "width": 1024,
+    "height": 1536,
+    "box": [
+      4,
+      8,
+      1020,
+      1528
+    ],
+    "transparent": 502140
+  },
+  {
+    "name": "seoa-portrait",
+    "width": 1024,
+    "height": 1536,
+    "box": [
+      40,
+      13,
+      969,
+      1523
+    ],
+    "transparent": 542198
+  },
+  {
+    "name": "teacher-portrait",
+    "width": 1024,
+    "height": 1536,
+    "box": [
+      3,
+      10,
+      1021,
+      1526
+    ],
+    "transparent": 457694
+  },
+  {
+    "name": "minjun-portrait",
+    "width": 1024,
+    "height": 1536,
+    "box": [
+      19,
+      9,
+      1005,
+      1527
+    ],
+    "transparent": 553886
+  }
+]
